@@ -406,6 +406,8 @@ describe("defaults", () => {
     expect(extractParticipantId(base.debug.simulateScanUrl, base.qr.participantId)).toBe("1001");
     expect(base.assets.background).toBe("branding/background.jpg");
     expect(base.assets.attractVideo).toBe("");
+    expect(base.attract.rotation.keyWhite).toBe(false);
+    expect(base.attract.rotation.holdMs).toBe(6000);
   });
 });
 
@@ -477,6 +479,25 @@ describe("background plate", () => {
     expect(chrome("attract", { attractVideo: "   " })).not.toContain("bg-video");
     expect(chrome("attract", { attractVideo: "attract/loop.mp4" })).not.toContain("bg-video");
     expect(chrome("attract", { attractVideo: ".\\attract\\loop.mp4" })).not.toContain("bg-video");
+    const attract = chrome("attract");
+    expect(attract).toContain("attract-title");
+    expect(attract).toContain("POSE WITH");
+    expect(attract).toContain("A FLYER");
+    expect(attract).toContain("player-slot");
+    expect(attract).toContain("REGISTER HERE");
+    expect(attract).toContain("register-card");
+    expect(attract).toContain('id="qr-well"');
+    expect(attract).toContain("branding/qr.png");
+    expect(attract).toContain("dayton-d-logo-red.svg");
+    expect(attract).not.toContain("hero-player");
+    expect(attract).not.toContain("sponsored");
+    expect(chrome("attract", {}, "blob:http://localhost/bg").includes("TOUCH TO START")).toBe(false);
+    const touch = renderChrome({
+      ...viewFor("attract"),
+      config: { ...base, start: { mode: "touch" } },
+    });
+    expect(touch).toContain("touch-start");
+    expect(touch).not.toContain("register-card");
     expect(attractVideoSource("attract/custom.mp4")).toBe("attract/custom.mp4");
     expect(attractVideoSource(" attract/loop.mp4 ")).toBe("");
   });

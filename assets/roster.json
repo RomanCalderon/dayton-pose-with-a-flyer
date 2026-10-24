@@ -74,7 +74,8 @@
           "right": "athletes/right_dribble.mp4",
           "leftWebm": "athletes/left_dribble.webm",
           "rightWebm": "athletes/right_dribble.webm"
-        }
+        },
+        "still": "stills/pose-a.png"
       },
       {
         "id": "m02",
@@ -87,7 +88,8 @@
         "clips": {
           "left": "athletes/left_stand.mp4",
           "right": "athletes/right_stand.mp4"
-        }
+        },
+        "still": "stills/pose-b.png"
       },
       {
         "id": "m03",
@@ -100,7 +102,8 @@
         "clips": {
           "left": "athletes/left_crossover.mp4",
           "right": "athletes/right_crossover.mp4"
-        }
+        },
+        "still": "stills/pose-c.png"
       },
       {
         "id": "m04",
@@ -115,7 +118,8 @@
           "right": "athletes/right_dribble.mp4",
           "leftWebm": "athletes/left_dribble.webm",
           "rightWebm": "athletes/right_dribble.webm"
-        }
+        },
+        "still": "stills/pose-a.png"
       },
       {
         "id": "m05",
@@ -128,7 +132,8 @@
         "clips": {
           "left": "athletes/left_stand.mp4",
           "right": "athletes/right_stand.mp4"
-        }
+        },
+        "still": "stills/pose-b.png"
       },
       {
         "id": "m06",
@@ -141,7 +146,8 @@
         "clips": {
           "left": "athletes/left_crossover.mp4",
           "right": "athletes/right_crossover.mp4"
-        }
+        },
+        "still": "stills/pose-c.png"
       },
       {
         "id": "m07",
@@ -156,7 +162,8 @@
           "right": "athletes/right_dribble.mp4",
           "leftWebm": "athletes/left_dribble.webm",
           "rightWebm": "athletes/right_dribble.webm"
-        }
+        },
+        "still": "stills/pose-a.png"
       },
       {
         "id": "m08",
@@ -169,7 +176,8 @@
         "clips": {
           "left": "athletes/left_stand.mp4",
           "right": "athletes/right_stand.mp4"
-        }
+        },
+        "still": "stills/pose-b.png"
       },
       {
         "id": "m09",
@@ -182,7 +190,8 @@
         "clips": {
           "left": "athletes/left_crossover.mp4",
           "right": "athletes/right_crossover.mp4"
-        }
+        },
+        "still": "stills/pose-c.png"
       },
       {
         "id": "m10",
@@ -197,7 +206,8 @@
           "right": "athletes/right_dribble.mp4",
           "leftWebm": "athletes/left_dribble.webm",
           "rightWebm": "athletes/right_dribble.webm"
-        }
+        },
+        "still": "stills/pose-a.png"
       },
       {
         "id": "m11",
@@ -210,7 +220,8 @@
         "clips": {
           "left": "athletes/left_stand.mp4",
           "right": "athletes/right_stand.mp4"
-        }
+        },
+        "still": "stills/pose-b.png"
       },
       {
         "id": "m12",
@@ -223,7 +234,8 @@
         "clips": {
           "left": "athletes/left_crossover.mp4",
           "right": "athletes/right_crossover.mp4"
-        }
+        },
+        "still": "stills/pose-c.png"
       },
       {
         "id": "m13",
@@ -238,7 +250,8 @@
           "right": "athletes/right_dribble.mp4",
           "leftWebm": "athletes/left_dribble.webm",
           "rightWebm": "athletes/right_dribble.webm"
-        }
+        },
+        "still": "stills/pose-a.png"
       },
       {
         "id": "m14",
@@ -251,7 +264,8 @@
         "clips": {
           "left": "athletes/left_stand.mp4",
           "right": "athletes/right_stand.mp4"
-        }
+        },
+        "still": "stills/pose-b.png"
       },
       {
         "id": "m15",
@@ -264,7 +278,8 @@
         "clips": {
           "left": "athletes/left_crossover.mp4",
           "right": "athletes/right_crossover.mp4"
-        }
+        },
+        "still": "stills/pose-c.png"
       },
       {
         "id": "m16",
@@ -279,7 +294,8 @@
           "right": "athletes/right_dribble.mp4",
           "leftWebm": "athletes/left_dribble.webm",
           "rightWebm": "athletes/right_dribble.webm"
-        }
+        },
+        "still": "stills/pose-a.png"
       },
       {
         "id": "m17",
@@ -292,7 +308,8 @@
         "clips": {
           "left": "athletes/left_stand.mp4",
           "right": "athletes/right_stand.mp4"
-        }
+        },
+        "still": "stills/pose-b.png"
       },
       {
         "id": "m18",
@@ -305,7 +322,8 @@
         "clips": {
           "left": "athletes/left_crossover.mp4",
           "right": "athletes/right_crossover.mp4"
-        }
+        },
+        "still": "stills/pose-c.png"
       },
       {
         "id": "m19",
@@ -320,7 +338,8 @@
           "right": "athletes/right_dribble.mp4",
           "leftWebm": "athletes/left_dribble.webm",
           "rightWebm": "athletes/right_dribble.webm"
-        }
+        },
+        "still": "stills/pose-a.png"
       }
     ],
     "womens": [
@@ -337,7 +356,8 @@
           "right": "athletes/right_dribble.mp4",
           "leftWebm": "athletes/left_dribble.webm",
           "rightWebm": "athletes/right_dribble.webm"
-        }
+        },
+        "still": "stills/pose-a.png"
       },
       {
         "id": "w02",
@@ -350,7 +370,8 @@
         "clips": {
           "left": "athletes/left_stand.mp4",
           "right": "athletes/right_stand.mp4"
-        }
+        },
+        "still": "stills/pose-b.png"
       },
       {
         "id": "w03",
@@ -363,7 +384,8 @@
         "clips": {
           "left": "athletes/left_crossover.mp4",
           "right": "athletes/right_crossover.mp4"
-        }
+        },
+        "still": "stills/pose-c.png"
       },
       {
         "id": "w04",
@@ -378,7 +400,8 @@
           "right": "athletes/right_dribble.mp4",
           "leftWebm": "athletes/left_dribble.webm",
           "rightWebm": "athletes/right_dribble.webm"
-        }
+        },
+        "still": "stills/pose-a.png"
       },
       {
         "id": "w05",
@@ -391,7 +414,8 @@
         "clips": {
           "left": "athletes/left_stand.mp4",
           "right": "athletes/right_stand.mp4"
-        }
+        },
+        "still": "stills/pose-b.png"
       },
       {
         "id": "w06",
@@ -404,7 +428,8 @@
         "clips": {
           "left": "athletes/left_crossover.mp4",
           "right": "athletes/right_crossover.mp4"
-        }
+        },
+        "still": "stills/pose-c.png"
       },
       {
         "id": "w07",
@@ -419,7 +444,8 @@
           "right": "athletes/right_dribble.mp4",
           "leftWebm": "athletes/left_dribble.webm",
           "rightWebm": "athletes/right_dribble.webm"
-        }
+        },
+        "still": "stills/pose-a.png"
       },
       {
         "id": "w08",
@@ -432,7 +458,8 @@
         "clips": {
           "left": "athletes/left_stand.mp4",
           "right": "athletes/right_stand.mp4"
-        }
+        },
+        "still": "stills/pose-b.png"
       },
       {
         "id": "w09",
@@ -445,7 +472,8 @@
         "clips": {
           "left": "athletes/left_crossover.mp4",
           "right": "athletes/right_crossover.mp4"
-        }
+        },
+        "still": "stills/pose-c.png"
       },
       {
         "id": "w10",
@@ -460,7 +488,8 @@
           "right": "athletes/right_dribble.mp4",
           "leftWebm": "athletes/left_dribble.webm",
           "rightWebm": "athletes/right_dribble.webm"
-        }
+        },
+        "still": "stills/pose-a.png"
       },
       {
         "id": "w11",
@@ -473,7 +502,8 @@
         "clips": {
           "left": "athletes/left_stand.mp4",
           "right": "athletes/right_stand.mp4"
-        }
+        },
+        "still": "stills/pose-b.png"
       },
       {
         "id": "w12",
@@ -486,7 +516,8 @@
         "clips": {
           "left": "athletes/left_crossover.mp4",
           "right": "athletes/right_crossover.mp4"
-        }
+        },
+        "still": "stills/pose-c.png"
       },
       {
         "id": "w13",
@@ -501,7 +532,8 @@
           "right": "athletes/right_dribble.mp4",
           "leftWebm": "athletes/left_dribble.webm",
           "rightWebm": "athletes/right_dribble.webm"
-        }
+        },
+        "still": "stills/pose-a.png"
       },
       {
         "id": "w14",
@@ -514,7 +546,8 @@
         "clips": {
           "left": "athletes/left_stand.mp4",
           "right": "athletes/right_stand.mp4"
-        }
+        },
+        "still": "stills/pose-b.png"
       },
       {
         "id": "w15",
@@ -527,7 +560,8 @@
         "clips": {
           "left": "athletes/left_crossover.mp4",
           "right": "athletes/right_crossover.mp4"
-        }
+        },
+        "still": "stills/pose-c.png"
       },
       {
         "id": "w16",
@@ -542,7 +576,8 @@
           "right": "athletes/right_dribble.mp4",
           "leftWebm": "athletes/left_dribble.webm",
           "rightWebm": "athletes/right_dribble.webm"
-        }
+        },
+        "still": "stills/pose-a.png"
       },
       {
         "id": "w17",
@@ -555,7 +590,8 @@
         "clips": {
           "left": "athletes/left_stand.mp4",
           "right": "athletes/right_stand.mp4"
-        }
+        },
+        "still": "stills/pose-b.png"
       },
       {
         "id": "w18",
@@ -568,7 +604,8 @@
         "clips": {
           "left": "athletes/left_crossover.mp4",
           "right": "athletes/right_crossover.mp4"
-        }
+        },
+        "still": "stills/pose-c.png"
       },
       {
         "id": "w19",
@@ -583,8 +620,15 @@
           "right": "athletes/right_dribble.mp4",
           "leftWebm": "athletes/left_dribble.webm",
           "rightWebm": "athletes/right_dribble.webm"
-        }
+        },
+        "still": "stills/pose-a.png"
       }
     ]
-  }
+  },
+  "mascots": [
+    {
+      "id": "mascot",
+      "still": "stills/mascot.png"
+    }
+  ]
 }

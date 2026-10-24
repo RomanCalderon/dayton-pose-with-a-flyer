@@ -585,6 +585,35 @@ def write_qr(path: Path) -> None:
     img.save(path)
 
 
+def write_attract_stills() -> None:
+    """Transparent full-body stand-ins. Real roster cutouts replace these files."""
+    folder = ASSETS / "stills"
+    folder.mkdir(parents=True, exist_ok=True)
+    specs = [
+        ("pose-a.png", (564, 2000), RED, "stand"),
+        ("pose-b.png", (720, 1800), NAVY, "dribble"),
+        ("pose-c.png", (640, 1900), CHAPEL, "crossover"),
+        ("mascot.png", (860, 1700), (240, 180, 40, 255), "mascot"),
+    ]
+    for name, size, color, kind in specs:
+        image = Image.new("RGBA", size, (0, 0, 0, 0))
+        draw = ImageDraw.Draw(image)
+        width, height = size
+        cx = width / 2
+        ground = height - 24
+        draw.ellipse([cx - 70, 80, cx + 70, 230], fill=color)
+        draw.rounded_rectangle([cx - 90, 210, cx + 90, ground - 520], radius=40, fill=color)
+        draw.polygon([(cx - 40, ground - 540), (cx - 110, ground), (cx - 20, ground)], fill=color)
+        draw.polygon([(cx + 40, ground - 540), (cx + 20, ground), (cx + 110, ground)], fill=color)
+        if kind == "dribble":
+            draw.ellipse([cx + 80, ground - 700, cx + 170, ground - 610], fill=(20, 20, 20, 255))
+        elif kind == "crossover":
+            draw.ellipse([cx - 170, ground - 640, cx - 80, ground - 550], fill=(20, 20, 20, 255))
+        elif kind == "mascot":
+            draw.pieslice([cx - 120, 40, cx + 120, 280], 200, 340, fill=(20, 20, 20, 255))
+        image.save(folder / name)
+
+
 def write_roster() -> None:
     def entry(row: tuple[str, str, str, int], team: str, index: int) -> dict:
         ident, first, last, jersey = row
@@ -595,6 +624,7 @@ def write_roster() -> None:
                 "leftWebm": "athletes/left_dribble.webm",
                 "rightWebm": "athletes/right_dribble.webm",
             }
+        poses = ("stills/pose-a.png", "stills/pose-b.png", "stills/pose-c.png")
         return {
             "id": ident,
             "firstName": first,
@@ -602,6 +632,7 @@ def write_roster() -> None:
             "jersey": jersey,
             "team": team,
             "headshot": f"headshots/{ident}.png",
+            "still": poses[index % 3],
             "placeholder": True,
             "clips": {
                 "left": LEFT_CLIPS[variant],
@@ -635,6 +666,7 @@ def write_roster() -> None:
             "mens": [entry(row, "mens", i) for i, row in enumerate(MEN)],
             "womens": [entry(row, "womens", i) for i, row in enumerate(WOMEN)],
         },
+        "mascots": [{"id": "mascot", "still": "stills/mascot.png"}],
     }
     (ASSETS / "roster.json").write_text(json.dumps(roster, indent=2) + "\n")
 
@@ -680,6 +712,7 @@ def main() -> None:
     encode_webm(ASSETS / "athletes" / "right_dribble.webm", "dribble", mirror=True)
     print("attract + fire")
     attract_and_fire()
+    write_attract_stills()
     write_roster()
     print("done")
     for path in sorted(ASSETS.rglob("*")):

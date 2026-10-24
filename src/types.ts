@@ -104,6 +104,16 @@ export interface AppConfig {
     allowKeyboard: boolean;
     showHints: boolean;
   };
+  attract: {
+    rotation: {
+      enabled: boolean;
+      holdMs: number;
+      outMs: number;
+      inMs: number;
+      /** When true, opaque stills lose border-connected white. Transparent PNGs are left alone. */
+      keyWhite: boolean;
+    };
+  };
 }
 
 export interface ClipMeta {
@@ -121,6 +131,8 @@ export interface Athlete {
   jersey: number;
   team: RosterId;
   headshot: string;
+  /** Full-body attract cutout. When omitted, the attract loop uses `headshot`. */
+  still?: string;
   placeholder?: boolean;
   clips: {
     left: string;
@@ -130,12 +142,20 @@ export interface Athlete {
   };
 }
 
+export interface RosterMascot {
+  id: string;
+  still?: string;
+  headshot?: string;
+}
+
 export interface RosterFile {
   version: number;
   note?: string;
   /** Optional. Missing entries are measured from the file; .webm is treated as VP9-alpha. */
   clipMeta?: Record<string, ClipMeta>;
   teams: Record<RosterId, Athlete[]>;
+  /** Attract-only figures that are not on a pick roster. */
+  mascots?: RosterMascot[];
 }
 
 export interface AthleteTransform {

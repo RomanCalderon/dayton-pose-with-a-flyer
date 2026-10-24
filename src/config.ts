@@ -87,6 +87,15 @@ export const DEFAULT_CONFIG: AppConfig = {
     allowKeyboard: true,
     showHints: true,
   },
+  attract: {
+    rotation: {
+      enabled: true,
+      holdMs: 6000,
+      outMs: 700,
+      inMs: 900,
+      keyWhite: false,
+    },
+  },
 };
 
 /** Strip // and block comments without touching strings. */

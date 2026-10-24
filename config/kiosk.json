@@ -118,5 +118,14 @@
     "simulateScanUrl": "https://example.test/checkin?participant_id=1001",
     "allowKeyboard": true,
     "showHints": true
+  },
+  "attract": {
+    "rotation": {
+      "enabled": true,
+      "holdMs": 6000,
+      "outMs": 700,
+      "inMs": 900,
+      "keyWhite": false
+    }
   }
 }

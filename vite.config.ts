@@ -21,6 +21,16 @@ function contentType(file: string): string {
       return "video/webm";
     case ".txt":
       return "text/plain";
+    case ".svg":
+      return "image/svg+xml";
+    case ".woff2":
+      return "font/woff2";
+    case ".woff":
+      return "font/woff";
+    case ".otf":
+      return "font/otf";
+    case ".ttf":
+      return "font/ttf";
     default:
       return "application/octet-stream";
   }

@@ -39,7 +39,7 @@ These are on whenever `debug.allowKeyboard` is true (the prototype default).
 
 The debug overlay can also simulate a scan, force the VP9-alpha clip, and show the plus/minus buttons. A one-line hint sits on the attract screen while `debug.showHints` is true.
 
-`?screen=attract|pick|countdown|adjust|preview|thanks` jumps to that screen for layout checks. Add `&team=womens` or `&select=1`. `?mode=touch` or `?mode=qr` overrides `start.mode` for that launch, which is how you try touch-to-start without editing the config. `?webm=1` prefers the VP9 clip when the roster has one. `?scan=` replaces the simulated QR text for that launch.
+`?screen=attract|pick|countdown|adjust|preview|thanks` jumps to that screen for layout checks. Add `&team=womens` or `&select=1`. `?mode=touch` or `?mode=qr` overrides `start.mode` for that launch, which is how you try touch-to-start without editing the config. `?webm=1` prefers the VP9 clip when the roster has one. `?scan=` replaces the simulated QR text for that launch. `?holdMs=`, `?outMs=`, `?inMs=`, and `?keyWhite=0|1` override the attract rotation for that launch. `?still=` accepts an http(s) URL and plays that one cutout.
 
 ## What a guest does
 
@@ -97,11 +97,15 @@ Everything the screens read lives under `assets/` (or whatever `assets.root` poi
 
 | Path | Role |
 | --- | --- |
-| `roster.json` | Both teams. Names, jersey numbers, headshot paths, clip paths |
-| `headshots/<id>.png` | Circular portraits |
+| `roster.json` | Both teams. Names, jersey numbers, headshot paths, optional `still` cutouts, clip paths. `mascots` is attract-only |
+| `headshots/<id>.png` | Circular portraits on the pick screen |
+| `stills/<id>.png` or the path in `still` / `headshot` | Full-body attract cutout. Drawn at 2000px tall, centered on x=625, bottom at y=2080. Transparent PNGs are used as-is |
 | `athletes/<id>_left.mp4` and `_right.mp4` | Stacked-alpha H.264. Color on top, alpha as brightness on the bottom, same width |
 | `athletes/<id>_left.webm` | Optional VP9 with alpha. Used when the mp4 fails, or when the debug overlay prefers WebM |
 | `branding/background.jpg` | Static plate behind attract, pick, preview, and thank-you. Cover-fit. A 16:9 file fills the stage. A taller file is centered and shifted up 31px, matching the Figma crop of the 3840×2320 fill. Countdown and tap-to-adjust keep the live camera instead |
+| `branding/dayton-d-logo-red.svg` | Red D on the attract register card |
+| `branding/qr.png` | Registration QR with the `QRCO.DE/FLYERPOSE` caption baked in, drawn at 216.43×268.8 |
+| `fonts/Vitesse-Bold.woff2`, `.woff`, `.otf`, or `.ttf` | Optional machine override for Vitesse Bold. The build already embeds `src/fonts/Vitesse-Bold.otf` |
 | `attract/loop.mp4` | Legacy generated picture of the old diagonal screen. The app does not play this path. Any other `assets.attractVideo` path still plays only on the attract screen, above the plate |
 | `frames/takeaway_v1.png` | Transparent PNG composited over the 2560×1440 JPEG |
 | `fx/fire.mp4` | Hidden preview layer |
@@ -117,7 +121,16 @@ Regenerate the placeholders with `python3 scripts/generate_assets.py` (Pillow an
 
 ### Fonts and marks
 
-Headlines use [Saira Extra Condensed](https://fonts.google.com/specimen/Saira+Extra+Condensed) and body text uses Saira. Both are SIL Open Font License; the license texts are in `licenses/`. Vitesse is not included. Libre Baskerville remains installed for the old chrome sponsor line and is not drawn.
+The attract title and “REGISTER HERE” use Vitesse Bold, declared as `@font-face` family `Vitesse` at weight 700 from `src/fonts/Vitesse-Bold.otf` (`format("opentype")`). The file’s own name is “Vitesse Bold” and its OS/2 weight is 400, so the face is not matched through the system. Vite embeds that OTF in the frontend bundle. A file dropped at `C:\DaytonKiosk\assets\fonts\` is optional and wins when present; the first existing name is used:
+
+1. `Vitesse-Bold.woff2`
+2. `Vitesse-Bold.woff`
+3. `Vitesse-Bold.otf`
+4. `Vitesse-Bold.ttf`
+
+The register card body uses [Work Sans SemiBold](https://fonts.google.com/specimen/Work+Sans) (OFL, `licenses/WorkSans-OFL.txt`). If Vitesse fails to load, the title falls back to Roboto Slab Black (`licenses/RobotoSlab-LICENSE.txt`). Other headlines use [Saira Extra Condensed](https://fonts.google.com/specimen/Saira+Extra+Condensed) and body text uses Saira. Both are SIL Open Font License; the license texts are in `licenses/`. Libre Baskerville remains installed for the old chrome sponsor line and is not drawn.
+
+`attract.rotation` cycles every roster still (men, women, and mascots; a `still` path wins over `headshot`, and a repeated id is shown once). It holds for `holdMs` (6000), slides fully off the left in `outMs` (700, ease-in), swaps the decoded next cutout off screen, then slides in over `inMs` (900, ease-out). The loop pauses when the screen is not attract. `keyWhite` defaults to false because the real cutouts are already transparent. Set it true only for opaque stills; border-connected white is removed and an existing alpha channel is left alone. The sponsored-by block and the rotate button stay hidden. The 200×200 camera slot stays white when the side camera is missing.
 
 The red “D” and the frame artwork are original placeholders. The Wright-Patt strip is not drawn in the chrome; it is baked into `branding/background.jpg`. Drop licensed logo files in when you have them, and point the frame at the real `takeaway_v1.png`. Do not commit other trademarked logos or athlete photographs to this repository while it is public.
 

@@ -181,17 +181,6 @@ function mark(tone: "red" | "white" | "navy"): string {
   return `<span class="mark mark-${tone}" aria-hidden="true">D</span>`;
 }
 
-function silhouette(): string {
-  return `<svg class="hero-player" viewBox="0 0 360 760" aria-hidden="true">
-    <ellipse cx="168" cy="730" rx="70" ry="16" fill="#000"/>
-    <path fill="#000" d="M150 250c-8 70-10 140-6 250l-28 190h-46l-20-170 36-160-40-90 28-20 48 70 28-40c-30-50-34-90-20-140 18-8 40-8 52 8 10 48-6 92-18 132l36 48 52-78 30 16-46 96 34 150-18 176h-48l-24-190c2-80 0-160-8-218z"/>
-    <circle cx="176" cy="118" r="52" fill="#000"/>
-    <path fill="#000" d="M128 108c8-48 40-78 78-70 20 4 36 24 40 46-30 4-70-6-96-20-8 12-16 28-22 44z"/>
-    <circle cx="92" cy="430" r="46" fill="#000"/>
-    <path fill="#000" d="M70 390c20 8 36 28 40 52 8-30 28-40 48-36l18 70-30 16-16-48c-16 6-30 24-34 48l-36 8c-6-40-8-78 10-110z"/>
-  </svg>`;
-}
-
 function renderAttract(view: ViewModel): string {
   const touch = view.config.start.mode === "touch";
   const hint = view.config.debug.showHints
@@ -199,42 +188,45 @@ function renderAttract(view: ViewModel): string {
     : "";
   const panel = touch
     ? `<button class="touch-start" data-action="touch-start">TOUCH TO START</button>`
-    : renderQrCard(view);
+    : renderRegisterCard(view);
   const touchAttr = touch ? ` data-action="touch-start"` : "";
   return `<section class="screen attract${touch ? " is-touch" : ""}"${touchAttr}>
     ${background(view, true)}
-    ${silhouette()}
-    <h1 class="mega"><span>POSE WITH</span><span>A FLYER</span></h1>
+    <h1 class="attract-title">POSE WITH
+A FLYER</h1>
+    <div class="player-slot" aria-hidden="true">
+      <div class="player-slide">
+        <img class="player-still" alt="" />
+      </div>
+    </div>
     ${panel}
     ${hint}
   </section>`;
 }
 
-function renderQrCard(view: ViewModel): string {
-  const qr = view.assetUrl("branding/register-qr.png");
-  const well = view.qrError
-    ? `<div class="qr-error"><strong>${escapeHtml(view.qrError)}</strong></div>`
-    : `<div class="qr-well" id="qr-well"></div>`;
-  return `<div class="qr-card">
-    <div class="qr-head">
-      ${mark("red")}
-      <div class="qr-register">REGISTER HERE</div>
+function renderRegisterCard(view: ViewModel): string {
+  const logo = view.assetUrl("branding/dayton-d-logo-red.svg");
+  const qr = view.assetUrl("branding/qr.png");
+  return `<aside class="register-card">
+    <div class="register-title">
+      <img class="register-logo" alt="" src="${escapeHtml(logo)}" />
+      <p class="register-word">REGISTER HERE</p>
     </div>
-    <div class="qr-split">
-      <div class="qr-step qr-step-dark">
-        <div class="step-no">1</div>
-        <p>IF YOU DON'T HAVE<br>A CODE, SCAN TO<br>REGISTER</p>
-        <img class="reg-qr" alt="Registration QR code" src="${escapeHtml(qr)}" />
-        <div class="qr-url">QRCO.DE/FLYERPOSE</div>
-      </div>
-      <div class="qr-step qr-step-red">
-        <div class="step-no">2</div>
-        <p>HOLD YOUR UNIQUE<br>CODE IN FRONT OF SIDE<br>CAMERA TO PLAY</p>
-        ${well}
-        ${view.scanNotice ? `<p class="scan-notice">${escapeHtml(view.scanNotice)}</p>` : ""}
+    <div class="register-body">
+      <div class="register-panels">
+        <div class="register-panel register-panel-dark">
+          <div class="register-tab">1</div>
+          <p class="register-copy">IF YOU DON'T HAVE A CODE, SCAN TO REGISTER</p>
+          <img class="register-qr" alt="Registration QR code" src="${escapeHtml(qr)}" />
+        </div>
+        <div class="register-panel register-panel-red">
+          <div class="register-tab">2</div>
+          <p class="register-copy register-copy-right">HOLD YOUR UNIQUE CODE IN FRONT OF SIDE CAMERA TO PLAY</p>
+          <div class="qr-well" id="qr-well"></div>
+        </div>
       </div>
     </div>
-  </div>`;
+  </aside>`;
 }
 
 function teamWord(roster: Session["roster"]): string {

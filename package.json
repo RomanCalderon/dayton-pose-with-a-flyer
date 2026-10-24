@@ -1,7 +1,7 @@
 {
   "name": "pose-with-a-flyer",
   "private": true,
-  "version": "0.1.7",
+  "version": "0.1.8",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -12,8 +12,10 @@
   },
   "dependencies": {
     "@fontsource/libre-baskerville": "^5.2.8",
+    "@fontsource/roboto-slab": "^5.2.8",
     "@fontsource/saira": "^5.2.8",
     "@fontsource/saira-extra-condensed": "^5.2.8",
+    "@fontsource/work-sans": "^5.2.8",
     "@tauri-apps/api": "^2.12.4",
     "zxing-wasm": "^3.0.0"
   },

@@ -1,7 +1,9 @@
+import "@fontsource/roboto-slab/900.css";
 import "@fontsource/saira-extra-condensed/600.css";
 import "@fontsource/saira-extra-condensed/700.css";
 import "@fontsource/saira/500.css";
 import "@fontsource/saira/600.css";
+import "@fontsource/work-sans/600.css";
 import { KioskApp } from "./app";
 import "./styles.css";
 

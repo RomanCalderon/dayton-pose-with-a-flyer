@@ -1,3 +1,13 @@
+import {
+  attractSlideTransform,
+  attractSlideTransition,
+  collectAttractStills,
+  decodeImage,
+  keyedStillUrl,
+  shuffleAttractOrder,
+  VITESSE_FONT_FILES,
+  type AttractStill,
+} from "./attract";
 import { countdownDue, countdownRemainingMs, countdownShownSecond } from "./clock";
 import {
   clampTransform,
@@ -144,6 +154,14 @@ export class KioskApp {
   private drag: { id: string; lastX: number; lastY: number } | null = null;
   private pinch: { id: string; startDist: number; startScale: number } | null = null;
   private devices: MediaDeviceLike[] = [];
+  private attractTimer = 0;
+  private attractToken = 0;
+  private attractPhase: "idle" | "hold" | "out" | "in" = "idle";
+  private attractOrder: AttractStill[] = [];
+  private attractCursor = 0;
+  private attractCache = new Map<string, string>();
+  private attractPending = new Map<string, Promise<string | null>>();
+  private attractOverrideFile = "";
 
   constructor(private readonly root: HTMLElement) {}
 
@@ -176,6 +194,7 @@ export class KioskApp {
     if (this.paths.assetOverrideRoot) {
       this.logLine(`asset override ${this.paths.assetOverrideRoot}`);
     }
+    void this.loadVitesseOverride();
     this.bind();
     this.scheduleFit();
     await this.loadRoster();
@@ -378,6 +397,18 @@ export class KioskApp {
     if (assets && /^https?:\/\//i.test(assets)) {
       this.paths = { ...this.paths, assetRoot: assets.replace(/\/$/, "") };
     }
+    const rotation = { ...this.config.attract.rotation };
+    const hold = Number(params.get("holdMs"));
+    const outMs = Number(params.get("outMs"));
+    const inMs = Number(params.get("inMs"));
+    if (params.has("holdMs") && Number.isFinite(hold) && hold >= 0) rotation.holdMs = hold;
+    if (params.has("outMs") && Number.isFinite(outMs) && outMs >= 0) rotation.outMs = outMs;
+    if (params.has("inMs") && Number.isFinite(inMs) && inMs >= 0) rotation.inMs = inMs;
+    if (params.get("keyWhite") === "1") rotation.keyWhite = true;
+    if (params.get("keyWhite") === "0") rotation.keyWhite = false;
+    this.config = { ...this.config, attract: { rotation } };
+    const still = params.get("still");
+    if (still && /^https?:\/\//i.test(still)) this.attractOverrideFile = still;
   }
 
   private applyFixture(): void {
@@ -456,6 +487,7 @@ export class KioskApp {
     const mode = canvasMode(this.session.screen);
     this.placeCanvas(mode);
     this.mountQrVideo();
+    this.syncAttractRotation();
     this.punchPreviewHole();
     this.renderDebugPanel();
     this.renderStatusStrip();
@@ -1757,6 +1789,209 @@ export class KioskApp {
     } catch (error) {
       console.warn("append_log failed", error);
     }
+  }
+
+  private async loadVitesseOverride(): Promise<void> {
+    const root = this.paths.assetOverrideRoot.trim();
+    if (!root) return;
+    for (const file of VITESSE_FONT_FILES) {
+      const url = assetFileUrl(this.paths.tauri, root, file);
+      try {
+        const response = await fetch(url);
+        if (!response.ok) continue;
+        const buffer = await response.arrayBuffer();
+        if (buffer.byteLength < 16) continue;
+        const face = new FontFace("Vitesse Override", buffer, { weight: "700", style: "normal" });
+        await face.load();
+        document.fonts.add(face);
+        document.documentElement.style.setProperty("--vitesse-family", '"Vitesse Override", "Vitesse"');
+        this.logLine(`vitesse override ${file}`);
+        return;
+      } catch (error) {
+        this.logError(`vitesse ${file}`, error);
+      }
+    }
+  }
+
+  private attractSource(): AttractStill[] {
+    if (this.attractOverrideFile) return [{ id: "override", file: this.attractOverrideFile }];
+    return collectAttractStills(this.roster);
+  }
+
+  private ensureAttractOrder(): void {
+    if (this.attractOrder.length > 0) return;
+    this.attractOrder = shuffleAttractOrder(this.attractSource(), Math.random);
+    this.attractCursor = 0;
+  }
+
+  private currentAttract(): AttractStill | null {
+    if (this.attractOrder.length === 0) return null;
+    return this.attractOrder[this.attractCursor] ?? null;
+  }
+
+  private nextAttract(): AttractStill | null {
+    if (this.attractOrder.length === 0) return null;
+    return this.attractOrder[(this.attractCursor + 1) % this.attractOrder.length] ?? null;
+  }
+
+  private advanceAttract(): void {
+    if (this.attractOrder.length === 0) return;
+    const previous = this.currentAttract()?.id ?? "";
+    if (this.attractCursor + 1 >= this.attractOrder.length) {
+      this.attractOrder = shuffleAttractOrder(this.attractSource(), Math.random, previous);
+      this.attractCursor = 0;
+      return;
+    }
+    this.attractCursor += 1;
+  }
+
+  private stopAttractRotation(): void {
+    if (this.attractPhase === "idle" && this.attractTimer === 0) return;
+    window.clearTimeout(this.attractTimer);
+    this.attractTimer = 0;
+    this.attractToken += 1;
+    this.attractPhase = "idle";
+  }
+
+  private syncAttractRotation(): void {
+    if (this.session.screen !== "attract") {
+      this.stopAttractRotation();
+      return;
+    }
+    this.ensureAttractOrder();
+    if (!this.config.attract.rotation.enabled) {
+      this.stopAttractRotation();
+      void this.warmAttract(this.currentAttract());
+      this.paintAttractPlayer(false);
+      return;
+    }
+    if (this.attractPhase === "idle") {
+      if (this.attractOrder.length === 0) return;
+      void this.warmAttract(this.currentAttract());
+      void this.warmAttract(this.nextAttract());
+      this.beginAttractHold();
+      return;
+    }
+    const slide = this.chrome.querySelector<HTMLElement>(".player-slide");
+    if (!slide || slide.dataset.phase !== this.attractPhase) this.paintAttractPlayer(false);
+  }
+
+  private beginAttractHold(): void {
+    this.attractPhase = "hold";
+    this.paintAttractPlayer(false);
+    const token = this.attractToken;
+    this.attractTimer = window.setTimeout(() => {
+      if (token !== this.attractToken || this.session.screen !== "attract") return;
+      this.beginAttractOut();
+    }, this.config.attract.rotation.holdMs);
+  }
+
+  private beginAttractOut(): void {
+    this.attractPhase = "out";
+    this.paintAttractPlayer(true);
+    const token = this.attractToken;
+    this.attractTimer = window.setTimeout(() => {
+      void this.finishAttractOut(token);
+    }, this.config.attract.rotation.outMs);
+  }
+
+  private async finishAttractOut(token: number): Promise<void> {
+    if (token !== this.attractToken || this.session.screen !== "attract") return;
+    this.advanceAttract();
+    await this.warmAttract(this.currentAttract());
+    if (token !== this.attractToken || this.session.screen !== "attract") return;
+    this.beginAttractIn(token);
+  }
+
+  private beginAttractIn(token: number): void {
+    this.attractPhase = "out";
+    this.paintAttractPlayer(false);
+    requestAnimationFrame(() => {
+      if (token !== this.attractToken || this.session.screen !== "attract") return;
+      this.attractPhase = "in";
+      this.paintAttractPlayer(true);
+      this.attractTimer = window.setTimeout(() => {
+        if (token !== this.attractToken || this.session.screen !== "attract") return;
+        this.beginAttractHold();
+      }, this.config.attract.rotation.inMs);
+    });
+  }
+
+  private paintAttractPlayer(animate: boolean): void {
+    const slide = this.chrome.querySelector<HTMLElement>(".player-slide");
+    const img = this.chrome.querySelector<HTMLImageElement>(".player-still");
+    if (!slide || !img) return;
+    const still = this.currentAttract();
+    const url = still ? this.attractCache.get(still.file) ?? "" : "";
+    if (url) {
+      img.src = url;
+      img.dataset.file = still?.file ?? "";
+    }
+    const phase = this.attractPhase === "out" ? "out" : "in";
+    const rotation = this.config.attract.rotation;
+    slide.style.transition = animate ? attractSlideTransition(phase, rotation.outMs, rotation.inMs) : "none";
+    slide.style.transform = attractSlideTransform(phase);
+    slide.dataset.phase = this.attractPhase;
+  }
+
+  private async warmAttract(still: AttractStill | null): Promise<void> {
+    if (!still || this.session.screen !== "attract") return;
+    const url = await this.cachedAttractUrl(still.file);
+    if (!url || this.session.screen !== "attract") return;
+    if (this.currentAttract()?.file !== still.file) return;
+    const img = this.chrome.querySelector<HTMLImageElement>(".player-still");
+    if (img && img.dataset.file !== still.file) this.paintAttractPlayer(false);
+  }
+
+  private cachedAttractUrl(file: string): Promise<string | null> {
+    const cached = this.attractCache.get(file);
+    if (cached) return Promise.resolve(cached);
+    const pending = this.attractPending.get(file);
+    if (pending) return pending;
+    const token = this.attractToken;
+    const job = this.fetchAttractUrl(file).then((url) => {
+      this.attractPending.delete(file);
+      if (!url) return null;
+      if (token !== this.attractToken || this.session.screen !== "attract") {
+        URL.revokeObjectURL(url);
+        return null;
+      }
+      this.attractCache.set(file, url);
+      return url;
+    });
+    this.attractPending.set(file, job);
+    return job;
+  }
+
+  private async fetchAttractUrl(file: string): Promise<string | null> {
+    try {
+      const blob = /^https?:\/\//i.test(file)
+        ? await fetchAssetBlob(file, 8000)
+        : await this.fetchAttractBlob(file);
+      const url = await keyedStillUrl(blob, this.config.attract.rotation.keyWhite);
+      try {
+        await decodeImage(url);
+      } catch (error) {
+        this.logError(`attract still decode ${file}`, error);
+      }
+      return url;
+    } catch (error) {
+      this.logError(`attract still ${file}`, error);
+      return null;
+    }
+  }
+
+  private async fetchAttractBlob(relative: string): Promise<Blob> {
+    let lastError: unknown = null;
+    for (const root of assetSearchRoots(this.paths.assetOverrideRoot, this.paths.assetRoot)) {
+      const direct = assetFileUrl(this.paths.tauri, root, relative);
+      try {
+        return await fetchAssetBlob(direct, 8000);
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error(`missing still ${relative}`);
   }
 }
 
