@@ -13,9 +13,10 @@ import {
   transformForMeasuredSize,
 } from "./placement";
 import { urlIsCanvasSafe } from "./media";
+import { athleteSourceKind, playbackFrameReady } from "./playback";
 import { chooseSides, createSession, lockWordsForCountdown, reduceSession } from "./session";
 import { UPLOAD_FILENAME, uploadEndpoint, uploadFields } from "./upload";
-import { escapeHtml, headshotSlots } from "./ui";
+import { escapeHtml, headshotSlots, PHOTO_RECT, previewFit, STAGE_H, STAGE_W } from "./ui";
 
 const base = parseConfig("{}");
 
@@ -267,6 +268,40 @@ describe("placement and upload", () => {
       roster: "mens",
     });
     expect(UPLOAD_FILENAME).toBe("photo_2560x1440.jpg");
+  });
+
+  it("hides a countdown athlete until playback presents a frame", () => {
+    expect(playbackFrameReady(false, true, 1)).toBe(false);
+    expect(playbackFrameReady(true, false, 0)).toBe(false);
+    expect(playbackFrameReady(true, true, 0)).toBe(true);
+    expect(playbackFrameReady(true, false, 0.04)).toBe(true);
+    const waiting = {
+      screen: "countdown" as const,
+      presented: false,
+      hasStill: true,
+      videoReady: true,
+      hasPoster: true,
+    };
+    expect(athleteSourceKind(waiting)).toBe("hidden");
+    expect(athleteSourceKind({ ...waiting, presented: true })).toBe("still");
+    expect(athleteSourceKind({ ...waiting, presented: true, hasStill: false })).toBe("video");
+    expect(athleteSourceKind({ ...waiting, presented: true, hasStill: false, videoReady: false })).toBe("hidden");
+    expect(athleteSourceKind({ ...waiting, screen: "adjust" })).toBe("still");
+    expect(athleteSourceKind({ ...waiting, screen: "preview", hasStill: false })).toBe("video");
+    expect(athleteSourceKind({ ...waiting, screen: "flash", hasStill: false, videoReady: false })).toBe("poster");
+    expect(athleteSourceKind({ ...waiting, screen: "attract" })).toBe("hidden");
+  });
+
+  it("fits the whole 16:9 capture inside the preview well", () => {
+    const fit = previewFit(STAGE_W, STAGE_H, PHOTO_RECT);
+    const drawnW = STAGE_W * fit.scale;
+    const drawnH = STAGE_H * fit.scale;
+    expect(fit.left).toBeGreaterThanOrEqual(PHOTO_RECT.x);
+    expect(fit.top).toBeGreaterThanOrEqual(PHOTO_RECT.y);
+    expect(fit.left + drawnW).toBeLessThanOrEqual(PHOTO_RECT.x + PHOTO_RECT.w + 0.01);
+    expect(fit.top + drawnH).toBeLessThanOrEqual(PHOTO_RECT.y + PHOTO_RECT.h + 0.01);
+    expect(Math.min(PHOTO_RECT.w - drawnW, PHOTO_RECT.h - drawnH)).toBeLessThan(1);
+    expect(drawnW / drawnH).toBeCloseTo(16 / 9, 4);
   });
 
   it("lays out 19 headshots and escapes copy", () => {

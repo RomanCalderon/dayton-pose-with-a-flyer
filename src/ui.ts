@@ -400,3 +400,28 @@ export function previewHole(stageW: number, stageH: number, rect: { x: number; y
   const bottom = rect.y + rect.h;
   return `path(evenodd, "M0 0 H${stageW} V${stageH} H0 Z M${rect.x} ${rect.y} H${right} V${bottom} H${rect.x} Z")`;
 }
+
+export interface PreviewFit {
+  left: number;
+  top: number;
+  scale: number;
+}
+
+/**
+ * Scale the full stage-sized canvas into the preview well. The well and the
+ * output are both 16:9, so the uploaded JPEG is shown whole, not cropped.
+ */
+export function previewFit(
+  stageW: number,
+  stageH: number,
+  rect: { x: number; y: number; w: number; h: number },
+): PreviewFit {
+  const scale = Math.min(rect.w / stageW, rect.h / stageH);
+  const drawnW = stageW * scale;
+  const drawnH = stageH * scale;
+  return {
+    left: rect.x + (rect.w - drawnW) / 2,
+    top: rect.y + (rect.h - drawnH) / 2,
+    scale,
+  };
+}

@@ -39,7 +39,7 @@ These are on whenever `debug.allowKeyboard` is true (the prototype default).
 
 The debug overlay can also simulate a scan, force the VP9-alpha clip, and show the plus/minus buttons. A one-line hint sits on the attract screen while `debug.showHints` is true.
 
-`?screen=attract|pick|countdown|adjust|preview|thanks` jumps to that screen for layout checks. Add `&team=womens` or `&select=1`. `?mode=touch` or `?mode=qr` overrides `start.mode` for that launch, which is how you try touch-to-start without editing the config.
+`?screen=attract|pick|countdown|adjust|preview|thanks` jumps to that screen for layout checks. Add `&team=womens` or `&select=1`. `?mode=touch` or `?mode=qr` overrides `start.mode` for that launch, which is how you try touch-to-start without editing the config. `?webm=1` prefers the VP9 clip when the roster has one.
 
 ## What a guest does
 
@@ -158,6 +158,10 @@ Unsigned binaries trip SmartScreen. Choose **More info → Run anyway**. The cam
 - `src/logic.test.ts` — session, idle, camera matching, upload fields
 
 The compositor draws at 2560×1440. DOM chrome is laid out on a 3840×2160 stage and scaled to the window. Stacked-alpha clips are recombined in a shader (color in the top half, luminance alpha in the bottom half, `UNPACK_FLIP_Y`). VP9-alpha clips are sampled as straight alpha. If WebGL2 is missing, a canvas 2D path does the same composite.
+
+On the countdown, an athlete stays hidden until that clip fires `playing` and a new frame is presented (`requestVideoFrameCallback`, or `currentTime > 0` when the callback is missing). The paused first frame, the poster, and the PNG still are not drawn during the walk-in, so a clip that starts inside the frame does not sit frozen on screen. Once a frame has been presented, the clip stays up through the last-frame hold. Adjust, the flash, and preview still show that held pose, and a clip that never started falls back to its still or poster there so the photo is not missing an athlete.
+
+The preview screen scales that full 2560×1440 buffer into the photo well above the sponsor bar. The takeaway frame is drawn over the same rectangle on screen and in the JPEG, so the preview matches the file that is uploaded. The dock, the side type, and the sponsor sit outside the well.
 
 ## Known gaps
 

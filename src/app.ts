@@ -12,6 +12,7 @@ import { isHttpUrl } from "./cameras";
 import { idleTimeoutMs, stillThereMs, thanksTimeoutMs } from "./idle";
 import { formatLogLine, remember } from "./log";
 import { fetchAssetBlob, isImagePath, mediaIsSeekable, sourceIsCanvasSafe, urlIsCanvasSafe } from "./media";
+import { athleteSourceKind, playbackFrameReady } from "./playback";
 import { invoke } from "@tauri-apps/api/core";
 import { assetUrl, isTauri, loadRuntime, setFullscreen, type RuntimePaths } from "./platform";
 import { getQrReader, grabFrame } from "./qr";
@@ -33,6 +34,7 @@ import {
   escapeHtml,
   findAthlete,
   PHOTO_RECT,
+  previewFit,
   previewHole,
   renderChrome,
   renderDebug,
@@ -63,6 +65,11 @@ interface LoadedClip {
   generation: number;
   triedWebm: boolean;
   sizedFromMeta: boolean;
+  /** Countdown draws this clip only after playback has presented a frame. */
+  presented: boolean;
+  /** Invalidates a frame callback from the previous countdown. */
+  presentGeneration: number;
+  onTime: (() => void) | null;
 }
 
 export class KioskApp {
@@ -196,6 +203,7 @@ export class KioskApp {
       this.config = { ...this.config, start: { mode } };
     }
     if (params.get("paintThrows") === "1") this.paintThrows = true;
+    if (params.get("webm") === "1") this.preferWebm = true;
     const assets = params.get("assets");
     if (assets && /^https?:\/\//i.test(assets)) {
       this.paths = { ...this.paths, assetRoot: assets.replace(/\/$/, "") };
@@ -269,7 +277,7 @@ export class KioskApp {
     const view = this.view();
     this.chrome.innerHTML = renderChrome(view);
     const mode = canvasMode(this.session.screen);
-    this.canvas.className = `mode-${mode}`;
+    this.placeCanvas(mode);
     this.mountQrVideo();
     this.punchPreviewHole();
     this.renderDebugPanel();
@@ -511,6 +519,9 @@ export class KioskApp {
       const clip = this.ensureClip(id, this.session.sides[id]);
       if (!clip) continue;
       clip.still = null;
+      clip.presentGeneration += 1;
+      this.clearPlaybackWatch(clip);
+      this.setPresented(clip, false);
       clip.video.pause();
       rewindIfSeekable(clip.video);
     }
@@ -688,13 +699,32 @@ export class KioskApp {
       const transform = this.session.transforms[id];
       const clip = this.clips.get(this.clipKey(id, side));
       if (!side || !transform || !clip) return [];
-      const holding = this.session.screen === "adjust" || this.session.screen === "preview" || this.session.screen === "flash";
-      const poster = clip.poster && sourceIsCanvasSafe(clip.poster) ? clip.poster : null;
-      const source = holding && clip.still
-        ? clip.still
-        : clip.video.readyState >= 2 && sourceIsCanvasSafe(clip.video)
-          ? clip.video
-          : poster;
+      const kind = athleteSourceKind({
+        screen: this.session.screen,
+        presented: clip.presented,
+        hasStill: Boolean(clip.still),
+        videoReady: clip.video.readyState >= 2 && sourceIsCanvasSafe(clip.video),
+        hasPoster: Boolean(clip.poster && sourceIsCanvasSafe(clip.poster)),
+      });
+      let source: CanvasImageSource | null;
+      switch (kind) {
+        case "hidden":
+          source = null;
+          break;
+        case "still":
+          source = clip.still;
+          break;
+        case "video":
+          source = clip.video;
+          break;
+        case "poster":
+          source = clip.poster;
+          break;
+        default: {
+          const neverKind: never = kind;
+          source = neverKind;
+        }
+      }
       if (!source || clip.width <= 0 || clip.height <= 0) return [];
       const adjusting = this.session.screen === "adjust";
       return [{
@@ -820,7 +850,12 @@ export class KioskApp {
       generation: 1,
       triedWebm: Boolean(this.preferWebm && webm),
       sizedFromMeta,
+      presented: false,
+      presentGeneration: 0,
+      onTime: null,
     };
+    video.dataset.presented = "0";
+    video.addEventListener("playing", () => this.onClipPlaying(clip));
     video.addEventListener("loadedmetadata", () => this.noteClipSize(clip));
     video.addEventListener("loadeddata", () => {
       this.noteClipSize(clip);
@@ -950,6 +985,8 @@ export class KioskApp {
 
   private releaseClip(clip: LoadedClip): void {
     clip.generation += 1;
+    clip.presentGeneration += 1;
+    this.clearPlaybackWatch(clip);
     clip.video.pause();
     clip.video.removeAttribute("src");
     clip.video.load();
@@ -962,6 +999,70 @@ export class KioskApp {
     if (this.walkStarted) return;
     this.walkStarted = true;
     for (const clip of this.activeClips()) this.playClip(clip);
+  }
+
+  private onClipPlaying(clip: LoadedClip): void {
+    const generation = clip.presentGeneration;
+    const video = clip.video;
+    if (playbackFrameReady(true, false, video.currentTime)) {
+      this.markPlaybackFrame(clip, generation, "time");
+      return;
+    }
+    if (typeof video.requestVideoFrameCallback === "function") {
+      video.requestVideoFrameCallback(() => {
+        this.markPlaybackFrame(clip, generation, "rvfc");
+      });
+    }
+    this.watchPlaybackTime(clip, generation);
+  }
+
+  private watchPlaybackTime(clip: LoadedClip, generation: number): void {
+    this.clearPlaybackWatch(clip);
+    const video = clip.video;
+    const onTime = () => {
+      if (video.currentTime <= 0) return;
+      this.clearPlaybackWatch(clip);
+      this.markPlaybackFrame(clip, generation, "time");
+    };
+    clip.onTime = onTime;
+    video.addEventListener("timeupdate", onTime);
+  }
+
+  private clearPlaybackWatch(clip: LoadedClip): void {
+    if (!clip.onTime) return;
+    clip.video.removeEventListener("timeupdate", clip.onTime);
+    clip.onTime = null;
+  }
+
+  private markPlaybackFrame(clip: LoadedClip, generation: number, via: "rvfc" | "time"): void {
+    if (generation !== clip.presentGeneration || clip.presented) return;
+    const fresh = playbackFrameReady(true, via === "rvfc", clip.video.currentTime);
+    if (!fresh) return;
+    this.setPresented(clip, true);
+    this.logLine(`clip presented ${clip.file} via=${via} t=${clip.video.currentTime.toFixed(3)}`);
+    if (this.session.screen === "countdown" || this.session.screen === "flash") this.safePaint();
+    this.refreshDebugLive();
+  }
+
+  private setPresented(clip: LoadedClip, presented: boolean): void {
+    clip.presented = presented;
+    clip.video.dataset.presented = presented ? "1" : "0";
+  }
+
+  private placeCanvas(mode: "hidden" | "full" | "preview"): void {
+    this.canvas.className = `mode-${mode}`;
+    if (mode !== "preview") {
+      this.canvas.style.left = "";
+      this.canvas.style.top = "";
+      this.canvas.style.transform = "";
+      this.canvas.style.transformOrigin = "";
+      return;
+    }
+    const fit = previewFit(STAGE_W, STAGE_H, PHOTO_RECT);
+    this.canvas.style.left = `${fit.left}px`;
+    this.canvas.style.top = `${fit.top}px`;
+    this.canvas.style.transformOrigin = "top left";
+    this.canvas.style.transform = `scale(${fit.scale})`;
   }
 
   private playClip(clip: LoadedClip): void {
@@ -1380,7 +1481,7 @@ export class KioskApp {
           const video = clip.video;
           const err = video.error ? ` mediaError=${video.error.code}` : "";
           const duration = Number.isFinite(video.duration) ? video.duration.toFixed(2) : "?";
-          return `${clip.file} ${clip.sourceNote} ready=${video.readyState} t=${video.currentTime.toFixed(2)}/${duration}${err}`;
+          return `${clip.file} ${clip.sourceNote} ready=${video.readyState} t=${video.currentTime.toFixed(2)}/${duration} shown=${clip.presented ? 1 : 0}${err}`;
         });
     return [gl, photo, ...rows].join("\n");
   }

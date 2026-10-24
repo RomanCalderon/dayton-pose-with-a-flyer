@@ -48,6 +48,8 @@ button, video { font-family: inherit; }
 
 #gl.mode-hidden { display: none; }
 
+/* Keep this box at the stage size. Changing the canvas CSS size resets the WebGL buffer.
+   Preview mode scales the same box into the photo well from script. */
 #gl.mode-full,
 #gl.mode-preview {
   left: 0;
@@ -56,10 +58,8 @@ button, video { font-family: inherit; }
   height: 2160px;
 }
 
-/* Clip instead of resizing. Changing the canvas CSS size resets the WebGL buffer. */
 #gl.mode-preview {
   z-index: 2;
-  clip-path: inset(130px 470px 399px 470px);
 }
 
 #chrome {
