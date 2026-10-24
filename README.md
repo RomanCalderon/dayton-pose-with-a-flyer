@@ -104,6 +104,7 @@ Everything the screens read lives under `assets/`. A copy in the custom or machi
 | `athletes/<id>_left.webm` | Optional VP9 with alpha. Used when the mp4 fails, or when the debug overlay prefers WebM |
 | `branding/background.jpg` | Static plate behind attract, pick, preview, and thank-you. Cover-fit. A 16:9 file fills the stage. A taller file is centered and shifted up 31px, matching the Figma crop of the 3840×2320 fill. Countdown and tap-to-adjust keep the live camera instead |
 | `branding/dayton-d-logo-red.svg` | Red D on the attract register card |
+| `branding/dayton-d-logo-white.svg` | White D on the pick-screen panel |
 | `branding/qr.png` | Registration QR with the `QRCO.DE/FLYERPOSE` caption baked in, drawn at 216.43×268.8 |
 | `fonts/Vitesse-Bold.woff2`, `.woff`, `.otf`, or `.ttf` | Optional machine override for Vitesse Bold. The build already embeds `src/fonts/Vitesse-Bold.otf` |
 | `attract/loop.mp4` | Legacy generated picture of the old diagonal screen. The app does not play this path. Any other `assets.attractVideo` path still plays only on the attract screen, above the plate |
@@ -121,7 +122,7 @@ Regenerate the placeholders with `python3 scripts/generate_assets.py` (Pillow an
 
 ### Fonts and marks
 
-The attract title and “REGISTER HERE” use Vitesse Bold, declared as `@font-face` family `Vitesse` at weight 700 from `src/fonts/Vitesse-Bold.otf` (`format("opentype")`). The file’s own name is “Vitesse Bold” and its OS/2 weight is 400, so the face is not matched through the system. Vite embeds that OTF in the frontend bundle. A file dropped at `C:\DaytonKiosk\assets\fonts\` is optional and wins when present; the first existing name is used:
+The attract title, the pick headline, and “REGISTER HERE” use Vitesse Bold, declared as `@font-face` family `Vitesse` at weight 700 from `src/fonts/Vitesse-Bold.otf` (`format("opentype")`). The file’s own name is “Vitesse Bold” and its OS/2 weight is 400, so the face is not matched through the system. Vite embeds that OTF in the frontend bundle. Swap Team, Let’s Go, and Go Back use Vitesse Sans Bold, a separate family (`Vitesse Sans`) from `src/fonts/VitesseSans-Bold.otf`. A file dropped at `C:\DaytonKiosk\assets\fonts\` is optional and wins for Vitesse Bold when present; the first existing name is used:
 
 1. `Vitesse-Bold.woff2`
 2. `Vitesse-Bold.woff`
@@ -129,6 +130,8 @@ The attract title and “REGISTER HERE” use Vitesse Bold, declared as `@font-f
 4. `Vitesse-Bold.ttf`
 
 The register card body uses [Work Sans SemiBold](https://fonts.google.com/specimen/Work+Sans) (OFL, `licenses/WorkSans-OFL.txt`). If Vitesse fails to load, the title falls back to Roboto Slab Black (`licenses/RobotoSlab-LICENSE.txt`). Other headlines use [Saira Extra Condensed](https://fonts.google.com/specimen/Saira+Extra+Condensed) and body text uses Saira. Both are SIL Open Font License; the license texts are in `licenses/`. Libre Baskerville remains installed for the old chrome sponsor line and is not drawn.
+
+`pick.grid` places the player buttons. The button is 275.145, the gap is 60 (pitch 335.145), and the top-left button stays at (130, 1009). Columns are `clamp(max(minColumns, ceil((N - row3Max) / 2)), minColumns, maxColumns)`, so 7 across through 19 players (19 is 7/7/5), then wider rows up to 11. Row 3 holds at most `row3Max` (5). 20 is 8/8/4 and 27 is 11/11/5. A larger roster shows the first `maxPlayers` and the red strip names the real count. Names sit on the circle only when the roster has one. Jersey 0 hides the badge.
 
 `attract.rotation` cycles every roster still (men, women, and mascots; a `still` path wins over `headshot`, and a repeated id is shown once). It holds for `holdMs` (6000), slides fully off the left in `outMs` (700, ease-in), swaps the decoded next cutout off screen, then slides in over `inMs` (900, ease-out). `offsetX` (100) shifts only the resting center to the right, in stage pixels, so the figure covers less of the title. The exit transform does not include that shift. The loop pauses when the screen is not attract. `keyWhite` defaults to false because the real cutouts are already transparent. Set it true only for opaque stills; border-connected white is removed and an existing alpha channel is left alone. The sponsored-by block and the rotate button stay hidden. The 200×200 camera slot stays white when the side camera is missing.
 

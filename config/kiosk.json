@@ -119,6 +119,21 @@
     "allowKeyboard": true,
     "showHints": true
   },
+  "pick": {
+    // Button 275.145, gap 60, pitch 335.145, origin (130, 1009).
+    // columns = clamp(max(minColumns, ceil((N - row3Max) / 2)), minColumns, maxColumns).
+    // Rows 1 and 2 hold that many. Row 3 holds the rest, at most row3Max.
+    // 19 is 7/7/5. 20 is 8/8/4. 27 is 11/11/5. Over maxPlayers, the first maxPlayers show.
+    "grid": {
+      "button": 275.145,
+      "gap": 60,
+      "origin": { "x": 130, "y": 1009 },
+      "minColumns": 7,
+      "maxColumns": 11,
+      "row3Max": 5,
+      "maxPlayers": 27
+    }
+  },
   "attract": {
     "rotation": {
       "enabled": true,

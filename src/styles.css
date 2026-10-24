@@ -96,6 +96,14 @@ button, video { font-family: inherit; }
   src: url("./fonts/Vitesse-Bold.otf") format("opentype");
 }
 
+@font-face {
+  font-family: "Vitesse Sans";
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+  src: url("./fonts/VitesseSans-Bold.otf") format("opentype");
+}
+
 .attract-title {
   position: absolute;
   left: -27px;
@@ -345,104 +353,207 @@ button, video { font-family: inherit; }
 
 .pick-title {
   position: absolute;
-  left: 70px;
-  top: 20px;
+  left: -28px;
+  top: -14px;
+  width: 3373px;
+  height: 806px;
+  margin: 0;
   z-index: 2;
-  font-family: "Saira Extra Condensed", sans-serif;
-  font-weight: 700;
-  line-height: 0.84;
+  white-space: nowrap;
+  pointer-events: none;
 }
 
-.pick-kicker { font-size: 210px; letter-spacing: 1px; }
-
-.pick-count {
-  font-size: 250px;
-  display: flex;
-  align-items: flex-end;
-  gap: 24px;
-}
-
-.pick-count span { font-size: 210px; }
-
-.pick-players {
+.pick-title .main {
   position: absolute;
-  left: 168px;
-  top: 292px;
-  font-family: "Saira", sans-serif;
-  font-size: 28px;
-  font-weight: 600;
-  letter-spacing: 3px;
-  background: rgba(0, 37, 84, 0.35);
-  padding: 4px 10px;
+  left: 0;
+  top: 0;
+  margin: 0;
+  font-family: var(--vitesse-family, "Vitesse"), "Roboto Slab", serif;
+  font-weight: 700;
+  font-size: 505px;
+  line-height: 450px;
+  color: #fff;
+  text-transform: uppercase;
+  white-space: pre;
+  text-box: trim-both cap alphabetic;
+  font-synthesis: none;
 }
+
+.pick-title .players {
+  position: absolute;
+  left: 436px;
+  top: 753.5px;
+  transform: translateX(-50%);
+  font-family: var(--vitesse-family, "Vitesse"), "Roboto Slab", serif;
+  font-weight: 700;
+  font-size: 56.095px;
+  line-height: 49.986px;
+  color: #002554;
+  text-transform: uppercase;
+  text-box: trim-both cap alphabetic;
+  font-synthesis: none;
+}
+
+.headshots { position: absolute; inset: 0; z-index: 3; }
 
 .headshot {
   position: absolute;
-  width: 275px;
-  height: 275px;
+  width: 275.145px;
+  height: 275.145px;
   padding: 0;
   border: 0;
-  background: transparent;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #fff;
   cursor: pointer;
   z-index: 3;
 }
 
+.headshot.is-selected {
+  background: #00acec;
+  box-shadow: inset 0 0 0 5.08px #fff;
+}
+
 .headshot-photo {
   position: absolute;
-  left: 18px;
-  top: 8px;
-  width: 230px;
-  height: 230px;
-  border-radius: 50%;
+  left: 48.68px;
+  top: 39.79px;
+  width: 177.468px;
+  height: 236.625px;
   overflow: hidden;
-  background: #d9dee6;
-  box-shadow: 0 0 0 8px rgba(255, 255, 255, 0.92);
 }
 
 .headshot img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: 50% 50%;
 }
 
-.headshot.is-selected .headshot-photo {
-  box-shadow: 0 0 0 8px white, 0 0 0 16px var(--chapel);
-}
-
-.headshot-name {
+.hs-name {
   position: absolute;
   inset: 0;
   overflow: visible;
-}
-
-.headshot-name text {
-  fill: white;
-  font-family: "Saira", sans-serif;
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: 0.8px;
+  pointer-events: none;
 }
 
 .jersey {
   position: absolute;
   left: 50%;
-  bottom: 6px;
+  bottom: 0;
   transform: translateX(-50%);
-  width: 78px;
-  height: 78px;
+  width: 94.819px;
+  height: 94.819px;
+  box-sizing: border-box;
   border-radius: 50%;
-  background: var(--chapel);
-  color: white;
+  background: #00acec;
+  color: #fff;
   display: grid;
   place-items: center;
-  font-family: "Saira Extra Condensed", sans-serif;
-  font-size: 40px;
+  font-family: Arial, "Liberation Sans", sans-serif;
+  font-size: 42.33px;
   font-weight: 700;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+  line-height: 1;
+  text-transform: uppercase;
+  text-box: trim-both cap alphabetic;
 }
 
-.pick-actions, .dock {
+.headshot.is-selected .jersey {
+  border: 10.159px solid #fff;
+}
+
+.pick-panel {
   position: absolute;
+  left: 1896px;
+  top: 1759px;
+  width: 1070px;
+  height: 200px;
+  z-index: 5;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  box-sizing: border-box;
+  padding: 50px 70px;
+  gap: 100px;
+  background: #002554;
+  border-radius: 999px;
+}
+
+.pick-logo {
+  width: 160px;
+  height: 100px;
+  flex: none;
+  display: block;
+}
+
+.pick-panel-actions {
+  display: flex;
+  gap: 70px;
+  width: 670px;
+  height: 100px;
+  flex: none;
+}
+
+.pick-swap,
+.pick-go,
+.pick-back {
+  border-radius: 999px;
+  font-family: "Vitesse Sans", Arial, "Liberation Sans", sans-serif;
+  font-weight: 700;
+  font-synthesis: none;
+  text-transform: uppercase;
+  text-box: trim-both cap alphabetic;
+  line-height: normal;
+  cursor: pointer;
+}
+
+.pick-swap,
+.pick-go {
+  width: 300px;
+  height: 100px;
+  padding: 10px;
+  font-size: 40px;
+}
+
+.pick-swap {
+  box-sizing: border-box;
+  border: 4px solid #fff;
+  background: #002554;
+  color: #fff;
+}
+
+.pick-go {
+  border: 0;
+  background: rgba(0, 0, 0, 0.1);
+  color: rgba(255, 255, 255, 0.05);
+  cursor: default;
+}
+
+.pick-go.is-ready {
+  background: #fff;
+  color: #00acec;
+  cursor: pointer;
+}
+
+.pick-back {
+  position: absolute;
+  left: 39px;
+  top: 2079px;
+  width: 150px;
+  height: 50px;
+  z-index: 6;
+  box-sizing: border-box;
+  padding: 5px;
+  border: 0;
+  background: #002554;
+  color: #fff;
+  font-size: 20px;
+}
+
+.dock {
+  position: absolute;
+  left: 50%;
+  bottom: 48px;
   z-index: 5;
   display: flex;
   align-items: center;
@@ -452,13 +563,6 @@ button, video { font-family: inherit; }
   border-radius: 999px;
   background: var(--dock);
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
-}
-
-.pick-actions { right: 80px; bottom: 250px; }
-
-.dock {
-  left: 50%;
-  bottom: 48px;
   transform: translateX(-50%);
 }
 

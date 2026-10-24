@@ -97,6 +97,17 @@ export const DEFAULT_CONFIG: AppConfig = {
       keyWhite: false,
     },
   },
+  pick: {
+    grid: {
+      button: 275.145,
+      gap: 60,
+      origin: { x: 130, y: 1009 },
+      minColumns: 7,
+      maxColumns: 11,
+      row3Max: 5,
+      maxPlayers: 27,
+    },
+  },
 };
 
 /** Strip // and block comments without touching strings. */

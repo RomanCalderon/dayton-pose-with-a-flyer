@@ -116,6 +116,28 @@ export interface AppConfig {
       keyWhite: boolean;
     };
   };
+  /**
+   * Pick-screen player grid. Columns come from the roster size:
+   * clamp(max(minColumns, ceil((N - row3Max) / 2)), minColumns, maxColumns).
+   * Rows 1 and 2 take that many. Row 3 takes the rest, at most row3Max.
+   */
+  pick: {
+    grid: PickGridConfig;
+  };
+}
+
+export interface PickGridConfig {
+  /** Button diameter in stage px. */
+  button: number;
+  /** Gap between buttons. Pitch is button + gap. */
+  gap: number;
+  origin: { x: number; y: number };
+  minColumns: number;
+  maxColumns: number;
+  /** Buttons in the row that shares its band with the action panel. */
+  row3Max: number;
+  /** Rosters larger than this show the first this many and raise an error. */
+  maxPlayers: number;
 }
 
 export interface ClipMeta {

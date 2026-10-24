@@ -1,6 +1,14 @@
-import { lockWordsForCountdown } from "./session";
-import type { AppConfig, Athlete, RosterFile, Session } from "./types";
+import { DEFAULT_CONFIG } from "./config";
 import { resolveClipSize, transformBounds, type ClipSize } from "./placement";
+import {
+  athleteArcName,
+  estimateArcAdvance,
+  fitArcFont,
+  layoutPickGrid,
+  showJersey,
+} from "./pick-layout";
+import { lockWordsForCountdown } from "./session";
+import type { AppConfig, Athlete, PickGridConfig, RosterFile, Session } from "./types";
 
 export const STAGE_W = 3840;
 export const STAGE_H = 2160;
@@ -233,81 +241,83 @@ function renderRegisterCard(view: ViewModel): string {
 }
 
 function teamWord(roster: Session["roster"]): string {
-  return roster === "womens" ? "WOMEN'S" : "MEN'S";
+  return roster === "womens" ? "WOMEN\u2019S" : "MEN\u2019S";
 }
 
 function renderPick(view: ViewModel): string {
   const roster = view.roster;
   const athletes = roster ? roster.teams[view.session.roster] : [];
-  const slots = headshotSlots(athletes.length);
+  const grid = view.config.pick.grid;
+  const slots = layoutPickGrid(athletes.length, grid);
   const ready = view.session.selectedIds.length > 0;
-  const cards = athletes
-    .map((athlete, index) => headshotButton(view, athlete, slots[index], view.session.selectedIds.includes(athlete.id)))
+  const cards = slots
+    .map((slot) => {
+      const athlete = athletes[slot.index];
+      if (!athlete) return "";
+      return headshotButton(view, athlete, slot, view.session.selectedIds.includes(athlete.id), grid.button);
+    })
     .join("");
+  const count = view.config.roster.maxSelections;
+  const main = `PICK UP TO\n  ${count} ${teamWord(view.session.roster)}`;
+  const go = ready
+    ? `<button class="pick-go is-ready" type="button" data-action="lets-go">Let's go!</button>`
+    : `<button class="pick-go" type="button" disabled>Let's go!</button>`;
   return `<section class="screen pick">
     ${background(view, false)}
     <header class="pick-title">
-      <div class="pick-kicker">PICK UP TO</div>
-      <div class="pick-count">${view.config.roster.maxSelections} <span>${teamWord(view.session.roster)}</span></div>
-      <div class="pick-players">PLAYERS</div>
+      <div class="main">${escapeHtml(main)}</div>
+      <div class="players">PLAYERS</div>
     </header>
     <div class="headshots">${cards}</div>
-    <div class="pick-actions">
-      ${mark("white")}
-      <button class="pill pill-ghost" data-action="swap-team">SWAP TEAM</button>
-      <button class="pill pill-go ${ready ? "" : "is-disabled"}" ${ready ? 'data-action="lets-go"' : "disabled"}>LET'S GO!</button>
+    <div class="pick-panel">
+      <img class="pick-logo" alt="" src="${escapeHtml(view.assetUrl("branding/dayton-d-logo-white.svg"))}" width="160" height="100" />
+      <div class="pick-panel-actions">
+        <button class="pick-swap" type="button" data-action="swap-team">Swap Team</button>
+        ${go}
+      </div>
     </div>
-    <button class="corner-btn" data-action="go-back">GO BACK</button>
+    <button class="pick-back" type="button" data-action="go-back">Go Back</button>
   </section>`;
 }
 
-export function headshotSlots(count: number): Array<{ x: number; y: number }> {
-  const size = 275;
-  const gapX = 34;
-  const gapY = 42;
-  const rows = count === 19 ? [8, 7, 4] : packRows(count, 8);
-  const widest = Math.max(...rows);
-  const slots: Array<{ x: number; y: number }> = [];
-  rows.forEach((cols, row) => {
-    for (let col = 0; col < cols; col += 1) {
-      const rowOffset = ((widest - cols) * (size + gapX)) / 2;
-      slots.push({
-        x: 64 + rowOffset + col * (size + gapX),
-        y: 980 + row * (size + gapY),
-      });
-    }
-  });
-  return slots;
-}
-
-function packRows(count: number, width: number): number[] {
-  const rows: number[] = [];
-  let left = count;
-  while (left > 0) {
-    const take = Math.min(width, left);
-    rows.push(take);
-    left -= take;
-  }
-  return rows.length > 0 ? rows : [0];
+export function headshotSlots(
+  count: number,
+  grid: PickGridConfig = DEFAULT_CONFIG.pick.grid,
+): Array<{ x: number; y: number }> {
+  return layoutPickGrid(count, grid).map(({ x, y }) => ({ x, y }));
 }
 
 function headshotButton(
   view: ViewModel,
   athlete: Athlete,
-  slot: { x: number; y: number } | undefined,
+  slot: { x: number; y: number; index: number },
   selected: boolean,
+  size: number,
 ): string {
-  const pos = slot ?? { x: 0, y: 0 };
-  const name = `${athlete.firstName} ${athlete.lastName}`;
-  const arc = `arc-${athlete.id}`;
-  return `<button class="headshot ${selected ? "is-selected" : ""}" style="left:${pos.x}px;top:${pos.y}px" data-action="toggle-athlete" data-id="${escapeHtml(athlete.id)}" aria-pressed="${selected}">
+  const name = athleteArcName(athlete.firstName, athlete.lastName);
+  const badge = showJersey(athlete.jersey) ? `<span class="jersey">${escapeHtml(String(athlete.jersey))}</span>` : "";
+  return `<button class="headshot${selected ? " is-selected" : ""}" type="button" style="left:${slot.x}px;top:${slot.y}px;width:${size}px;height:${size}px" data-action="toggle-athlete" data-id="${escapeHtml(athlete.id)}" aria-pressed="${selected}">
     <span class="headshot-photo"><img alt="" src="${escapeHtml(view.assetUrl(athlete.headshot))}" /></span>
-    <svg class="headshot-name" viewBox="0 0 275 275" aria-hidden="true">
-      <defs><path id="${arc}" d="M36,150 A101,101 0 0,1 239,150" /></defs>
-      <text><textPath href="#${arc}" startOffset="50%" text-anchor="middle">${escapeHtml(name)}</textPath></text>
-    </svg>
-    <span class="jersey">${athlete.jersey}</span>
+    ${nameArc(name, slot.index)}
+    ${badge}
   </button>`;
+}
+
+function nameArc(name: string, index: number): string {
+  if (!name) return "";
+  const fit = fitArcFont(estimateArcAdvance(name));
+  const id = `hs-arc-${index}`;
+  const length = fit.textLength === null ? "" : ` textLength="${fit.textLength}" lengthAdjust="spacingAndGlyphs"`;
+  return `<svg class="hs-name" viewBox="0 0 275.145 275.145" width="275.145" height="275.145" aria-hidden="true">
+    <path id="${id}" fill="none" d="M137.952 256.449 A118.524 118.524 0 0 1 137.952 19.401 A118.524 118.524 0 0 1 137.952 256.449"/>
+    <text font-family="Arial, 'Liberation Sans', sans-serif" font-weight="700" font-size="${trimNum(fit.fontSize)}" letter-spacing="${trimNum(fit.letterSpacing)}" fill="#000" dy="${trimNum(fit.dy)}" dx="0.97">
+      <textPath href="#${id}" startOffset="50%" text-anchor="middle"${length}>${escapeHtml(name)}</textPath>
+    </text>
+  </svg>`;
+}
+
+function trimNum(value: number): string {
+  return String(Math.round(value * 1000) / 1000);
 }
 
 function renderCountdown(view: ViewModel): string {

@@ -23,6 +23,14 @@ import { idleTimeoutMs, stillThereMs, thanksTimeoutMs } from "./idle";
 import { formatLogLine, remember } from "./log";
 import { fetchAssetBlob, isImagePath, mediaIsSeekable, sourceIsCanvasSafe, urlIsCanvasSafe } from "./media";
 import { athleteSourceKind, playbackFrameReady } from "./playback";
+import {
+  ARC_DY,
+  ARC_FONT,
+  ARC_SPACING,
+  fitArcFont,
+  layoutPickGrid,
+  rosterOverflowMessage,
+} from "./pick-layout";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
@@ -42,7 +50,7 @@ import {
 } from "./platform";
 import { getQrReader, grabFrame } from "./qr";
 import { chooseSides, createSession, reduceSession, type SessionEvent } from "./session";
-import type { AppConfig, AthleteTransform, MediaDeviceLike, RosterFile, Session, Side, UploadResult } from "./types";
+import type { AppConfig, Athlete, AthleteTransform, MediaDeviceLike, RosterFile, RosterId, Session, Side, UploadResult } from "./types";
 import { postPhoto, responseSnippet, uploadEndpoint, uploadFields, uploadFilename } from "./upload";
 import {
   canvasToJpeg,
@@ -151,6 +159,7 @@ export class KioskApp {
   private logLines: string[] = [];
   private logPath = "";
   private recentLogs = new Map<string, number>();
+  private rosterOverflowKey = "";
   private walkStarted = false;
   private frozen = false;
   private capturing = false;
@@ -438,6 +447,8 @@ export class KioskApp {
     const screen = params.get("screen");
     if (!screen || !this.roster) return;
     const roster = params.get("team") === "womens" ? "womens" : this.config.roster.default;
+    const limit = Number(params.get("pickLimit"));
+    if (params.has("pickLimit") && Number.isFinite(limit)) this.applyPickLimit(roster, limit);
     this.session = { ...createSession(roster, "fixture"), roster };
     if (screen === "attract") return;
     if (this.config.start.mode === "touch") {
@@ -505,7 +516,9 @@ export class KioskApp {
 
   private render(): void {
     const view = this.view();
+    this.noteRosterOverflow();
     this.chrome.innerHTML = renderChrome(view);
+    this.schedulePickNameFit();
     const mode = canvasMode(this.session.screen);
     this.placeCanvas(mode);
     this.mountQrVideo();
@@ -1808,6 +1821,60 @@ export class KioskApp {
     if (this.debugHost) this.refreshDebugLive();
     if (this.statusHost) this.renderStatusStrip();
     void this.persistLog(line);
+  }
+
+  private applyPickLimit(team: RosterId, limit: number): void {
+    if (!this.roster) return;
+    const source = this.roster.teams[team];
+    const count = Math.max(0, Math.floor(limit));
+    const next: Athlete[] = [];
+    for (let i = 0; i < count; i += 1) {
+      if (source.length === 0) break;
+      const athlete = source[i % source.length];
+      next.push(i < source.length ? athlete : { ...athlete, id: `${athlete.id}~${i}` });
+    }
+    this.roster = { ...this.roster, teams: { ...this.roster.teams, [team]: next } };
+  }
+
+  private noteRosterOverflow(): void {
+    if (this.session.screen !== "pick" || !this.roster) return;
+    const athletes = this.roster.teams[this.session.roster];
+    const shown = layoutPickGrid(athletes.length, this.config.pick.grid).length;
+    if (athletes.length <= shown) return;
+    const key = `${this.session.roster}:${athletes.length}:${shown}`;
+    if (this.rosterOverflowKey === key) return;
+    this.rosterOverflowKey = key;
+    this.logError("roster", rosterOverflowMessage(this.session.roster, athletes.length, shown));
+  }
+
+  private schedulePickNameFit(): void {
+    if (this.session.screen !== "pick") return;
+    const fit = () => this.fitPickNames();
+    if (document.fonts.status === "loaded") fit();
+    void document.fonts.ready.then(fit);
+  }
+
+  private fitPickNames(): void {
+    if (this.session.screen !== "pick") return;
+    const nodes = this.chrome.querySelectorAll<SVGTextPathElement>(".hs-name textPath");
+    nodes.forEach((node) => {
+      const text = node.parentElement;
+      if (!(text instanceof SVGTextElement)) return;
+      text.setAttribute("font-size", String(ARC_FONT));
+      text.setAttribute("letter-spacing", String(ARC_SPACING));
+      text.setAttribute("dy", String(ARC_DY));
+      node.removeAttribute("textLength");
+      node.removeAttribute("lengthAdjust");
+      const measured = node.getComputedTextLength();
+      const next = fitArcFont(measured, ARC_FONT);
+      text.setAttribute("font-size", String(Math.round(next.fontSize * 1000) / 1000));
+      text.setAttribute("letter-spacing", String(Math.round(next.letterSpacing * 1000) / 1000));
+      text.setAttribute("dy", String(Math.round(next.dy * 1000) / 1000));
+      if (next.textLength !== null) {
+        node.setAttribute("textLength", String(next.textLength));
+        node.setAttribute("lengthAdjust", "spacingAndGlyphs");
+      }
+    });
   }
 
   private logError(where: string, error: unknown): void {

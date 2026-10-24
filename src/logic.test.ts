@@ -409,6 +409,15 @@ describe("defaults", () => {
     expect(base.attract.rotation.keyWhite).toBe(false);
     expect(base.attract.rotation.holdMs).toBe(6000);
     expect(base.attract.rotation.offsetX).toBe(100);
+    expect(base.pick.grid).toEqual({
+      button: 275.145,
+      gap: 60,
+      origin: { x: 130, y: 1009 },
+      minColumns: 7,
+      maxColumns: 11,
+      row3Max: 5,
+      maxPlayers: 27,
+    });
   });
 });
 
