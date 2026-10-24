@@ -9,7 +9,10 @@ use tauri::{
 };
 
 use crate::cameras::CameraList;
-use crate::config::{load_kiosk_config, window_settings};
+use crate::config::{
+    bundled_asset_roots_from_app, configured_asset_root, load_kiosk_config, preferred_asset_roots,
+    resolve_asset_file, window_settings,
+};
 use crate::webview_profile::{profile_dir, sync_webview_profile, ProfileSync};
 
 #[derive(serde::Serialize)]
@@ -18,8 +21,18 @@ struct LoadConfigResponse {
     config_text: String,
     config_path: String,
     asset_root: String,
+    bundled_asset_root: String,
     asset_override_root: String,
     log_path: String,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ResolveAssetResponse {
+    relative: String,
+    path: String,
+    root: String,
+    found: bool,
 }
 
 fn log_file(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
@@ -37,6 +50,7 @@ fn load_config(app: tauri::AppHandle) -> Result<LoadConfigResponse, String> {
         config_text: loaded.text,
         config_path: loaded.path.display().to_string(),
         asset_root: loaded.asset_root.display().to_string(),
+        bundled_asset_root: loaded.bundled_asset_root.display().to_string(),
         asset_override_root: config::override_root_if_present(&config::machine_asset_dir()),
         log_path,
     })
@@ -57,6 +71,29 @@ fn append_log(app: tauri::AppHandle, line: String) -> Result<String, String> {
     let clean = line.replace(['\r', '\n'], " ");
     writeln!(file, "{clean}").map_err(|error| error.to_string())?;
     Ok(path.display().to_string())
+}
+
+#[tauri::command]
+fn resolve_asset(app: tauri::AppHandle, relative: String) -> Result<ResolveAssetResponse, String> {
+    let loaded = load_kiosk_config(&app)?;
+    let preferred = preferred_asset_roots(configured_asset_root(&loaded.value));
+    let bundled = bundled_asset_roots_from_app(&app);
+    let resolved = resolve_asset_file(&preferred, &bundled, &relative)?;
+    let key = relative.trim().trim_start_matches(['/', '\\']).replace('\\', "/");
+    Ok(ResolveAssetResponse {
+        relative: key,
+        path: if resolved.found {
+            resolved.path.display().to_string()
+        } else {
+            String::new()
+        },
+        root: if resolved.found {
+            resolved.root.display().to_string()
+        } else {
+            String::new()
+        },
+        found: resolved.found,
+    })
 }
 
 #[tauri::command]
@@ -118,6 +155,7 @@ fn open_main_window(app: &tauri::App) -> tauri::Result<()> {
             path: std::path::PathBuf::new(),
             value: serde_json::json!({}),
             asset_root: std::path::PathBuf::new(),
+            bundled_asset_root: std::path::PathBuf::new(),
         }
     });
     let (fullscreen, width, height, always_on_top) = window_settings(&loaded.value);
@@ -155,6 +193,7 @@ pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             load_config,
+            resolve_asset,
             list_cameras,
             upload_photo,
             append_log

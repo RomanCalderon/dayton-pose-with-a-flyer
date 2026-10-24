@@ -18,7 +18,7 @@ import { chooseSides, createSession, lockWordsForCountdown, reduceSession } from
 import type { AppConfig, Athlete, RosterFile, Screen } from "./types";
 import { extractParticipantId, type ParticipantIdConfig } from "./participant";
 import { buildUploadForm, jpegFieldName, uploadEndpoint, uploadFields, uploadFilename } from "./upload";
-import { assetSearchRoots } from "./platform";
+import { assetMissingMessage, assetServedMessage, referencedAssetPaths } from "./platform";
 import {
   attractVideoSource,
   backgroundObjectPosition,
@@ -432,6 +432,8 @@ function viewFor(
     preferWebm: false,
     configPath: "",
     assetRoot: "",
+    bundledAssetRoot: "",
+    missingAssets: [],
     logPath: "",
     hasPhoto: true,
     flashOpacity: 0,
@@ -504,13 +506,40 @@ describe("background plate", () => {
 });
 
 describe("asset search", () => {
-  it("checks the machine folder before the bundled root", () => {
-    expect(assetSearchRoots("C:/DaytonKiosk/assets", "C:/Program/assets")).toEqual([
-      "C:/DaytonKiosk/assets",
-      "C:/Program/assets",
-    ]);
-    expect(assetSearchRoots("", "C:/Program/assets")).toEqual(["C:/Program/assets"]);
-    expect(assetSearchRoots("C:/same", "C:/same")).toEqual(["C:/same"]);
+  it("asks for every screen file, including branding added after a custom root", () => {
+    const athlete: Athlete = {
+      id: "m01",
+      firstName: "A",
+      lastName: "Flyer",
+      jersey: 1,
+      team: "mens",
+      headshot: "headshots/m01.png",
+      still: "stills/pose-a.png",
+      clips: { left: "athletes/left.mp4", right: "athletes/right.mp4" },
+    };
+    const roster: RosterFile = {
+      version: 1,
+      teams: { mens: [athlete], womens: [] },
+      mascots: [{ id: "mascot", still: "stills/mascot.png" }],
+    };
+    const files = referencedAssetPaths(roster, {
+      ...base,
+      assets: { ...base.assets, attractVideo: "attract/loop.mp4" },
+    });
+    expect(files).toContain("branding/dayton-d-logo-red.svg");
+    expect(files).toContain("branding/qr.png");
+    expect(files).toContain("branding/background.jpg");
+    expect(files).toContain("frames/takeaway_v1.png");
+    expect(files).toContain("fx/fire.mp4");
+    expect(files).toContain("headshots/m01.png");
+    expect(files).toContain("stills/pose-a.png");
+    expect(files).toContain("stills/mascot.png");
+    expect(files).toContain("athletes/left.mp4");
+    expect(files).not.toContain("attract/loop.mp4");
+    expect(assetServedMessage("branding/qr.png", "C:/DaytonKiosk/assets")).toBe(
+      "asset branding/qr.png root=C:/DaytonKiosk/assets",
+    );
+    expect(assetMissingMessage()).toBe("missing from the custom root and the bundled assets folder");
   });
 });
 

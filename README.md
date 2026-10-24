@@ -65,7 +65,7 @@ There is no webcam? The photo step shows `CAM-PHOTO-01` and a stand-in guest so 
 5. `%APPDATA%\com.daytonflyers.posewithaflyer\kiosk.json`
 6. the same paths under the Tauri resource directory (on Windows that directory is the exe folder, so this repeats 2 and 3)
 
-Empty `assets.root` uses the first folder that exists for everything except the background plate: bundled `assets` beside the exe, `resources\assets` beside the exe, then `C:\DaytonKiosk\assets`. The background is different: `C:\DaytonKiosk\assets\branding\background.jpg` is tried first when that folder exists, and the bundled file is the fallback. Set `assets.root` to an absolute folder when an operator is swapping the whole tree without reinstalling. Restart the app after editing.
+Every file is resolved on its own. The app checks `assets.root` when that is set, then `C:\DaytonKiosk\assets` when it is a different folder, and then the bundled `assets` folder beside the executable. A file that exists in the custom folder wins. A file that exists only in the install, such as `branding/dayton-d-logo-red.svg` or `branding/qr.png` added in a later build, still loads. The boot log records `asset <path> root=<folder>` for each file. A path that is in neither place is logged as an error, listed under `missing` in the F2 panel, and shown on the red strip. Restart the app after editing.
 
 ## Where things live on Windows
 
@@ -93,7 +93,7 @@ Camera pins accept `serial`, `usbPort`, `label`, or `deviceId`. Leave them blank
 
 ## Swap assets
 
-Everything the screens read lives under `assets/` (or whatever `assets.root` points at):
+Everything the screens read lives under `assets/`. A copy in the custom or machine folder replaces that one file; everything else still comes from the install:
 
 | Path | Role |
 | --- | --- |

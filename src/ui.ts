@@ -22,6 +22,8 @@ export interface ViewModel {
   preferWebm: boolean;
   configPath: string;
   assetRoot: string;
+  bundledAssetRoot: string;
+  missingAssets: string[];
   logPath: string;
   hasPhoto: boolean;
   flashOpacity: number;
@@ -167,8 +169,9 @@ function background(view: ViewModel, withVideo: boolean): string {
     ? `<img class="bg-photo" alt="" src="${escapeHtml(view.backgroundUrl)}" style="object-position:${escapeHtml(backgroundObjectPosition(view.backgroundWidth, view.backgroundHeight))}" />`
     : "";
   const attract = attractVideoSource(view.config.assets.attractVideo);
-  const video = withVideo && attract
-    ? `<video class="bg-video" src="${escapeHtml(view.assetUrl(attract))}" autoplay muted loop playsinline></video>`
+  const attractSrc = withVideo && attract ? view.assetUrl(attract) : "";
+  const video = attractSrc
+    ? `<video class="bg-video" src="${escapeHtml(attractSrc)}" autoplay muted loop playsinline></video>`
     : "";
   return `<div class="bg" aria-hidden="true">
     <div class="bg-navy"></div>
@@ -380,12 +383,15 @@ function plusMinus(view: ViewModel): string {
 function renderPreview(view: ViewModel): string {
   const fire = view.assetUrl(view.config.assets.fireVideo);
   const rect = PHOTO_RECT;
+  const fireVideo = fire
+    ? `<video class="fire-layer" src="${escapeHtml(fire)}" autoplay muted loop playsinline></video>`
+    : "";
   return `<section class="screen preview">
     ${background(view, false)}
     <div class="vert vert-left" aria-hidden="true">${letters("THAT'S")}</div>
     <div class="vert vert-right" aria-hidden="true">${letters("MONEY")}</div>
     <img class="frame-overlay" alt="" src="${escapeHtml(view.assetUrl(view.config.assets.takeawayFrame))}" style="left:${rect.x}px;top:${rect.y}px;width:${rect.w}px;height:${rect.h}px" />
-    <video class="fire-layer" src="${escapeHtml(fire)}" autoplay muted loop playsinline></video>
+    ${fireVideo}
     <div class="dock dock-preview">
       ${mark("white")}
       <button class="pill pill-ghost" data-action="try-again">TRY AGAIN</button>
@@ -427,7 +433,9 @@ export function renderDebug(view: ViewModel): string {
     <div>cameras ${escapeHtml(view.cameraSummary)}</div>
     <div>upload ${escapeHtml(view.uploadStatus || "(idle)")}</div>
     <div>config ${escapeHtml(view.configPath || "(unresolved)")}</div>
-    <div>assets ${escapeHtml(view.assetRoot || "(unresolved)")}</div>
+    <div>assets ${escapeHtml(view.assetRoot || "(no custom root)")}</div>
+    <div>bundled ${escapeHtml(view.bundledAssetRoot || "(unresolved)")}</div>
+    <div>missing ${escapeHtml(view.missingAssets.join(", ") || "(none)")}</div>
     <div>log ${escapeHtml(logPath)}</div>
     <pre id="debug-live" class="debug-log"></pre>
     <div class="debug-keys">S scan/start · Enter primary · Esc reset · Backspace back · N skip countdown · arrows nudge · [ ] scale · Tab next athlete · F fullscreen · F2 hide</div>

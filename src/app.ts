@@ -26,13 +26,18 @@ import { athleteSourceKind, playbackFrameReady } from "./playback";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
-  assetFileUrl,
-  assetSearchRoots,
-  assetUrl,
+  assetHitUrl,
+  assetMissingMessage,
+  assetServedMessage,
   isTauri,
   loadRuntime,
+  normalizeAssetKey,
+  pendingAssetSrc,
   readAppVersion,
+  referencedAssetPaths,
+  resolveAsset,
   setFullscreen,
+  type AssetHit,
   type RuntimePaths,
 } from "./platform";
 import { getQrReader, grabFrame } from "./qr";
@@ -120,6 +125,9 @@ export class KioskApp {
   private clips = new Map<string, LoadedClip>();
   private measuredClips = new Map<string, { width: number; height: number }>();
   private blobbedAssets = new Map<string, string>();
+  private assetHits = new Map<string, AssetHit>();
+  private assetPending = new Map<string, Promise<AssetHit>>();
+  private missingAssets: string[] = [];
   private backgroundUrl: string | null = null;
   private backgroundWidth = 0;
   private backgroundHeight = 0;
@@ -186,7 +194,9 @@ export class KioskApp {
     this.session = createSession(this.config.roster.default);
     this.compositor = new Compositor(this.canvas, this.config.output.width, this.config.output.height);
     this.compositor.onError = (error) => this.logError("webgl", error);
-    this.logLine(`boot version=${this.appVersion} config=${this.paths.configPath} assets=${this.paths.assetRoot}`);
+    this.logLine(
+      `boot version=${this.appVersion} config=${this.paths.configPath} assets=${this.paths.assetRoot || "(none)"} bundled=${this.paths.bundledAssetRoot || "(none)"}`,
+    );
     const configuredAttract = this.config.assets.attractVideo.trim();
     if (configuredAttract && !attractVideoSource(configuredAttract)) {
       this.logLine(`attract video ignored legacy placeholder ${configuredAttract}`);
@@ -198,6 +208,7 @@ export class KioskApp {
     this.bind();
     this.scheduleFit();
     await this.loadRoster();
+    await this.prefetchReferencedAssets();
     await this.loadStillImages();
     this.applyFixture();
     this.render();
@@ -328,10 +339,20 @@ export class KioskApp {
   }
 
   private async loadRoster(): Promise<void> {
-    const url = assetUrl(this.paths, this.config.assets.rosterFile);
+    const file = this.config.assets.rosterFile;
+    const url = await this.resolvedUrl(file);
+    if (!url) throw new Error(`Roster not found (${file})`);
     const response = await fetch(url);
-    if (!response.ok) throw new Error(`Roster not found at ${url}`);
+    if (!response.ok) {
+      this.noteMissingAsset(file);
+      throw new Error(`Roster not found at ${url}`);
+    }
     this.roster = (await response.json()) as RosterFile;
+  }
+
+  private async prefetchReferencedAssets(): Promise<void> {
+    const files = referencedAssetPaths(this.roster, this.config);
+    await Promise.all(files.map((file) => this.resolveHit(file)));
   }
 
   private async loadStillImages(): Promise<void> {
@@ -353,29 +374,28 @@ export class KioskApp {
       this.logLine("background fallback #002554 (assets.background is empty)");
       return;
     }
-    let lastError: unknown = null;
-    for (const root of assetSearchRoots(this.paths.assetOverrideRoot, this.paths.assetRoot)) {
-      const direct = assetFileUrl(this.paths.tauri, root, relative);
-      try {
-        const blob = await fetchAssetBlob(direct, 8000);
-        const url = URL.createObjectURL(blob);
-        const image = await loadImage(url);
-        if (!image || image.naturalWidth <= 0 || image.naturalHeight <= 0) {
-          URL.revokeObjectURL(url);
-          lastError = new Error(`empty image ${direct}`);
-          continue;
-        }
-        this.backgroundUrl = url;
-        this.backgroundWidth = image.naturalWidth;
-        this.backgroundHeight = image.naturalHeight;
-        this.logLine(`background ${relative} ${image.naturalWidth}x${image.naturalHeight} root=${root}`);
-        return;
-      } catch (error) {
-        lastError = error;
-      }
+    const direct = await this.resolvedUrl(relative);
+    if (!direct) {
+      this.logLine(`background fallback #002554 ${relative}`);
+      return;
     }
-    this.logLine(`background fallback #002554 ${relative}`);
-    if (lastError) this.logError(`background ${relative}`, lastError);
+    try {
+      const blob = await fetchAssetBlob(direct, 8000);
+      const url = URL.createObjectURL(blob);
+      const image = await loadImage(url);
+      if (!image || image.naturalWidth <= 0 || image.naturalHeight <= 0) {
+        URL.revokeObjectURL(url);
+        throw new Error(`empty image ${relative}`);
+      }
+      this.backgroundUrl = url;
+      this.backgroundWidth = image.naturalWidth;
+      this.backgroundHeight = image.naturalHeight;
+      const root = this.assetHits.get(normalizeAssetKey(relative))?.root ?? "";
+      this.logLine(`background ${relative} ${image.naturalWidth}x${image.naturalHeight} root=${root}`);
+    } catch (error) {
+      this.logLine(`background fallback #002554 ${relative}`);
+      this.logError(`background ${relative}`, error);
+    }
   }
 
   private applyDebugQuery(): void {
@@ -512,8 +532,15 @@ export class KioskApp {
   }
 
   private renderStatusStrip(): void {
-    const error = [...this.logLines].reverse().find((line) => line.includes(" ERROR "));
-    this.statusHost.innerHTML = error ? `<div class="status-strip">${escapeHtml(error)}</div>` : "";
+    const missing = this.missingAssets;
+    let text = "";
+    if (missing.length > 0) {
+      const extra = missing.length > 1 ? ` (+${missing.length - 1} more)` : "";
+      text = `Missing asset ${missing[missing.length - 1]}${extra}`;
+    } else {
+      text = [...this.logLines].reverse().find((line) => line.includes(" ERROR ")) ?? "";
+    }
+    this.statusHost.innerHTML = text ? `<div class="status-strip">${escapeHtml(text)}</div>` : "";
   }
 
   private view(): ViewModel {
@@ -532,6 +559,8 @@ export class KioskApp {
       preferWebm: this.preferWebm,
       configPath: this.paths?.configPath ?? "",
       assetRoot: this.paths?.assetRoot ?? "",
+      bundledAssetRoot: this.paths?.bundledAssetRoot ?? "",
+      missingAssets: this.missingAssets,
       logPath: this.logPath || this.paths?.logPath || "",
       hasPhoto: Boolean(this.photoVideo || this.frozenCamera),
       flashOpacity: this.flashOpacity,
@@ -1148,7 +1177,11 @@ export class KioskApp {
   }
 
   private async attachClipVideo(clip: LoadedClip, file: string, generation: number): Promise<void> {
-    const direct = assetUrl(this.paths, file);
+    const direct = await this.resolvedUrl(file);
+    if (!direct) {
+      this.fallBackToPoster(clip);
+      return;
+    }
     clip.file = file;
     clip.sourceNote = "loading";
     try {
@@ -1684,11 +1717,18 @@ export class KioskApp {
   }
 
   private displayAssetUrl(relative: string): string {
-    const key = relative.replace(/^[/\\]+/, "");
+    const key = normalizeAssetKey(relative);
+    if (!key) return "";
     const cached = this.blobbedAssets.get(key);
     if (cached) return cached;
-    const direct = assetUrl(this.paths, key);
-    if (isImagePath(key) && !urlIsCanvasSafe(direct)) {
+    const hit = this.assetHits.get(key);
+    if (!hit) {
+      void this.resolveHit(key).then(() => this.queueAssetRefresh());
+      return pendingAssetSrc(key);
+    }
+    if (!hit.found) return pendingAssetSrc(key);
+    const direct = assetHitUrl(this.paths.tauri, hit);
+    if (isImagePath(key) && direct && !urlIsCanvasSafe(direct)) {
       void this.localAssetUrl(key).then((url) => {
         if (url && url !== direct) this.queueAssetRefresh();
       });
@@ -1701,22 +1741,22 @@ export class KioskApp {
     this.assetRefresh = window.setTimeout(() => this.render(), 40);
   }
 
-  private localAssetUrl(relative: string): Promise<string | null> {
-    const key = relative.replace(/^[/\\]+/, "");
+  private async localAssetUrl(relative: string, required = true): Promise<string | null> {
+    const key = normalizeAssetKey(relative);
     const cached = this.blobbedAssets.get(key);
-    if (cached) return Promise.resolve(cached);
-    const direct = assetUrl(this.paths, key);
-    if (urlIsCanvasSafe(direct)) return Promise.resolve(direct);
+    if (cached) return cached;
+    const direct = await this.resolvedUrl(key, required);
+    if (!direct) return null;
+    if (urlIsCanvasSafe(direct)) return direct;
     let pending = this.localAssets.get(key);
     if (!pending) {
-      pending = this.fetchLocalAsset(key);
+      pending = this.fetchLocalAsset(key, direct);
       this.localAssets.set(key, pending);
     }
     return pending;
   }
 
-  private async fetchLocalAsset(relative: string): Promise<string | null> {
-    const direct = assetUrl(this.paths, relative);
+  private async fetchLocalAsset(relative: string, direct: string): Promise<string | null> {
     try {
       const blob = await fetchAssetBlob(direct, 8000);
       const url = URL.createObjectURL(blob);
@@ -1724,7 +1764,7 @@ export class KioskApp {
       return url;
     } catch (error) {
       const missing = error instanceof Error && /asset fetch 404/.test(error.message);
-      if (missing) this.logLine(`image missing ${relative}`);
+      if (missing) this.noteMissingAsset(relative);
       else this.logError(`image ${relative}`, error);
       return null;
     }
@@ -1735,7 +1775,7 @@ export class KioskApp {
   }
 
   private async attachPoster(clip: LoadedClip, file: string): Promise<void> {
-    const url = await this.localAssetUrl(file);
+    const url = await this.localAssetUrl(file, false);
     if (!url || !clip.poster) return;
     clip.poster.src = url;
   }
@@ -1792,10 +1832,11 @@ export class KioskApp {
   }
 
   private async loadVitesseOverride(): Promise<void> {
-    const root = this.paths.assetOverrideRoot.trim();
-    if (!root) return;
+    if (!this.paths.tauri) return;
     for (const file of VITESSE_FONT_FILES) {
-      const url = assetFileUrl(this.paths.tauri, root, file);
+      const hit = await this.resolveHit(file, false);
+      if (!hit.found) continue;
+      const url = assetHitUrl(true, hit);
       try {
         const response = await fetch(url);
         if (!response.ok) continue;
@@ -1805,7 +1846,7 @@ export class KioskApp {
         await face.load();
         document.fonts.add(face);
         document.documentElement.style.setProperty("--vitesse-family", '"Vitesse Override", "Vitesse"');
-        this.logLine(`vitesse override ${file}`);
+        this.logLine(`vitesse override ${file} root=${hit.root}`);
         return;
       } catch (error) {
         this.logError(`vitesse ${file}`, error);
@@ -1976,22 +2017,66 @@ export class KioskApp {
       }
       return url;
     } catch (error) {
-      this.logError(`attract still ${file}`, error);
+      const missing = error instanceof Error && error.message.startsWith("missing still");
+      if (!missing) this.logError(`attract still ${file}`, error);
       return null;
     }
   }
 
   private async fetchAttractBlob(relative: string): Promise<Blob> {
-    let lastError: unknown = null;
-    for (const root of assetSearchRoots(this.paths.assetOverrideRoot, this.paths.assetRoot)) {
-      const direct = assetFileUrl(this.paths.tauri, root, relative);
-      try {
-        return await fetchAssetBlob(direct, 8000);
-      } catch (error) {
-        lastError = error;
-      }
+    const direct = await this.resolvedUrl(relative);
+    if (!direct) throw new Error(`missing still ${relative}`);
+    return fetchAssetBlob(direct, 8000);
+  }
+
+  private resolveHit(relative: string, required = true): Promise<AssetHit> {
+    const key = normalizeAssetKey(relative);
+    const cached = this.assetHits.get(key);
+    if (cached) {
+      if (required && !cached.found) this.noteMissingAsset(key);
+      return Promise.resolve(cached);
     }
-    throw lastError instanceof Error ? lastError : new Error(`missing still ${relative}`);
+    const pending = this.assetPending.get(key);
+    if (pending) {
+      return pending.then((hit) => {
+        if (required && !hit.found) this.noteMissingAsset(key);
+        return hit;
+      });
+    }
+    const job = this.fetchHit(key, required);
+    this.assetPending.set(key, job);
+    return job;
+  }
+
+  private async fetchHit(key: string, required: boolean): Promise<AssetHit> {
+    let hit: AssetHit;
+    try {
+      hit = await resolveAsset(this.paths, key);
+    } catch (error) {
+      this.logError(`asset ${key}`, error);
+      hit = { relative: key, path: "", root: "", found: false };
+    }
+    this.assetPending.delete(key);
+    this.assetHits.set(key, hit);
+    if (hit.found) {
+      if (this.paths.tauri) this.logLine(assetServedMessage(key, hit.root));
+    } else if (required) {
+      this.noteMissingAsset(key);
+    }
+    return hit;
+  }
+
+  private async resolvedUrl(relative: string, required = true): Promise<string> {
+    const hit = await this.resolveHit(relative, required);
+    if (!hit.found) return "";
+    return assetHitUrl(this.paths.tauri, hit);
+  }
+
+  private noteMissingAsset(relative: string): void {
+    const key = normalizeAssetKey(relative);
+    if (!key || this.missingAssets.includes(key)) return;
+    this.missingAssets.push(key);
+    this.logError(`asset ${key}`, assetMissingMessage());
   }
 }
 
