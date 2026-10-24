@@ -14,7 +14,17 @@ import { formatLogLine, remember } from "./log";
 import { fetchAssetBlob, isImagePath, mediaIsSeekable, sourceIsCanvasSafe, urlIsCanvasSafe } from "./media";
 import { athleteSourceKind, playbackFrameReady } from "./playback";
 import { invoke } from "@tauri-apps/api/core";
-import { assetUrl, isTauri, loadRuntime, setFullscreen, type RuntimePaths } from "./platform";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import {
+  assetFileUrl,
+  assetSearchRoots,
+  assetUrl,
+  isTauri,
+  loadRuntime,
+  readAppVersion,
+  setFullscreen,
+  type RuntimePaths,
+} from "./platform";
 import { getQrReader, grabFrame } from "./qr";
 import { chooseSides, createSession, reduceSession, type SessionEvent } from "./session";
 import type { AppConfig, AthleteTransform, MediaDeviceLike, RosterFile, Session, Side, UploadResult } from "./types";
@@ -33,11 +43,16 @@ import {
   clipSize,
   escapeHtml,
   findAthlete,
+  logicalWindowSize,
   PHOTO_RECT,
   previewFit,
   previewHole,
+  readPhysicalSize,
+  attractVideoSource,
   renderChrome,
   renderDebug,
+  stageScale,
+  stageTransform,
   type ViewModel,
 } from "./ui";
 
@@ -78,7 +93,10 @@ export class KioskApp {
   private roster: RosterFile | null = null;
   private session: Session = createSession("mens");
   private compositor!: Compositor;
+  private viewport!: HTMLElement;
   private stage!: HTMLElement;
+  private appVersion = "";
+  private fitGeneration = 0;
   private chrome!: HTMLElement;
   private canvas!: HTMLCanvasElement;
   private mediaPool!: HTMLElement;
@@ -131,6 +149,7 @@ export class KioskApp {
 
   async start(): Promise<void> {
     this.root.innerHTML = `<div id="viewport"><div id="stage"><canvas id="gl"></canvas><div id="chrome"></div><div id="media-pool" class="media-pool"></div></div></div>`;
+    this.viewport = this.root.querySelector("#viewport") as HTMLElement;
     this.stage = this.root.querySelector("#stage") as HTMLElement;
     this.chrome = this.root.querySelector("#chrome") as HTMLElement;
     this.canvas = this.root.querySelector("#gl") as HTMLCanvasElement;
@@ -141,6 +160,7 @@ export class KioskApp {
     this.statusHost.id = "status-host";
     document.body.append(this.debugHost, this.statusHost);
     this.paths = await loadRuntime();
+    this.appVersion = await readAppVersion();
     this.config = this.paths.config;
     this.logPath = this.paths.logPath;
     this.applyDebugQuery();
@@ -148,9 +168,16 @@ export class KioskApp {
     this.session = createSession(this.config.roster.default);
     this.compositor = new Compositor(this.canvas, this.config.output.width, this.config.output.height);
     this.compositor.onError = (error) => this.logError("webgl", error);
-    this.logLine(`boot config=${this.paths.configPath} assets=${this.paths.assetRoot}`);
+    this.logLine(`boot version=${this.appVersion} config=${this.paths.configPath} assets=${this.paths.assetRoot}`);
+    const configuredAttract = this.config.assets.attractVideo.trim();
+    if (configuredAttract && !attractVideoSource(configuredAttract)) {
+      this.logLine(`attract video ignored legacy placeholder ${configuredAttract}`);
+    }
+    if (this.paths.assetOverrideRoot) {
+      this.logLine(`asset override ${this.paths.assetOverrideRoot}`);
+    }
     this.bind();
-    this.fit();
+    this.scheduleFit();
     await this.loadRoster();
     await this.loadStillImages();
     this.applyFixture();
@@ -161,7 +188,7 @@ export class KioskApp {
   }
 
   private bind(): void {
-    window.addEventListener("resize", () => this.fit());
+    this.bindStageFit();
     this.chrome.addEventListener("click", (event) => this.onClick(event));
     this.stage.addEventListener("pointerdown", (event) => this.onPointerDown(event));
     this.stage.addEventListener("pointermove", (event) => this.onPointerMove(event));
@@ -180,9 +207,105 @@ export class KioskApp {
     window.addEventListener("keydown", bump);
   }
 
-  private fit(): void {
-    const scale = Math.min(window.innerWidth / STAGE_W, window.innerHeight / STAGE_H);
-    this.stage.style.transform = `translate(-50%, -50%) scale(${scale})`;
+  private bindStageFit(): void {
+    const fit = () => this.scheduleFit();
+    window.addEventListener("resize", fit);
+    window.visualViewport?.addEventListener("resize", fit);
+    if (this.viewport) new ResizeObserver(fit).observe(this.viewport);
+    if (document.readyState === "complete") fit();
+    else window.addEventListener("load", fit, { once: true });
+    requestAnimationFrame(() => {
+      fit();
+      requestAnimationFrame(fit);
+    });
+    if (!isTauri()) return;
+    void this.listenForNativeFit();
+  }
+
+  private async listenForNativeFit(): Promise<void> {
+    try {
+      const win = getCurrentWindow();
+      await win.onResized(({ payload }) => {
+        void this.fitPhysical(payload.width, payload.height);
+      });
+      await win.onScaleChanged((event) => {
+        const size = readPhysicalSize(event.payload.size);
+        const logical = size ? logicalWindowSize(size.width, size.height, event.payload.scaleFactor) : null;
+        if (!logical) {
+          this.scheduleFit();
+          return;
+        }
+        this.fitGeneration += 1;
+        if (!this.applyStageScale(logical.width, logical.height)) this.scheduleFit();
+      });
+    } catch (error) {
+      this.logError("stage fit", error);
+    }
+  }
+
+  private scheduleFit(): void {
+    const generation = ++this.fitGeneration;
+    this.fitViewport();
+    if (!isTauri()) return;
+    void this.fitNative(generation);
+  }
+
+  private async fitPhysical(width: number, height: number): Promise<void> {
+    const generation = ++this.fitGeneration;
+    try {
+      const factor = await getCurrentWindow().scaleFactor();
+      if (generation !== this.fitGeneration) return;
+      const logical = logicalWindowSize(width, height, factor);
+      if (logical && this.applyStageScale(logical.width, logical.height)) return;
+    } catch (error) {
+      if (generation !== this.fitGeneration) return;
+      this.logError("stage fit", error);
+    }
+    if (generation === this.fitGeneration) this.fitViewport();
+  }
+
+  private async fitNative(generation: number): Promise<void> {
+    try {
+      const win = getCurrentWindow();
+      const [factor, size] = await Promise.all([win.scaleFactor(), win.innerSize()]);
+      if (generation !== this.fitGeneration) return;
+      const logical = logicalWindowSize(size.width, size.height, factor);
+      if (logical && this.applyStageScale(logical.width, logical.height)) return;
+    } catch (error) {
+      if (generation !== this.fitGeneration) return;
+      this.logError("stage fit", error);
+    }
+    if (generation === this.fitGeneration) this.fitViewport();
+  }
+
+  private fitViewport(): void {
+    const box = this.viewportBox();
+    if (!box) return;
+    this.applyStageScale(box.width, box.height);
+  }
+
+  private viewportBox(): { width: number; height: number } | null {
+    const candidates = [
+      this.measuredBox(this.viewport?.clientWidth, this.viewport?.clientHeight),
+      this.measuredBox(window.visualViewport?.width, window.visualViewport?.height),
+      this.measuredBox(window.innerWidth, window.innerHeight),
+    ];
+    for (const candidate of candidates) {
+      if (candidate) return candidate;
+    }
+    return null;
+  }
+
+  private measuredBox(width: number | undefined, height: number | undefined): { width: number; height: number } | null {
+    if (width === undefined || height === undefined || stageScale(width, height) === null) return null;
+    return { width, height };
+  }
+
+  private applyStageScale(width: number, height: number): boolean {
+    const transform = stageTransform(width, height);
+    if (!transform) return false;
+    this.stage.style.transform = transform;
+    return true;
   }
 
   private async loadRoster(): Promise<void> {
@@ -211,24 +334,29 @@ export class KioskApp {
       this.logLine("background fallback #002554 (assets.background is empty)");
       return;
     }
-    const direct = assetUrl(this.paths, relative);
-    try {
-      const blob = await fetchAssetBlob(direct, 8000);
-      const url = URL.createObjectURL(blob);
-      const image = await loadImage(url);
-      if (!image || image.naturalWidth <= 0 || image.naturalHeight <= 0) {
-        URL.revokeObjectURL(url);
-        this.logLine(`background fallback #002554 ${relative}`);
+    let lastError: unknown = null;
+    for (const root of assetSearchRoots(this.paths.assetOverrideRoot, this.paths.assetRoot)) {
+      const direct = assetFileUrl(this.paths.tauri, root, relative);
+      try {
+        const blob = await fetchAssetBlob(direct, 8000);
+        const url = URL.createObjectURL(blob);
+        const image = await loadImage(url);
+        if (!image || image.naturalWidth <= 0 || image.naturalHeight <= 0) {
+          URL.revokeObjectURL(url);
+          lastError = new Error(`empty image ${direct}`);
+          continue;
+        }
+        this.backgroundUrl = url;
+        this.backgroundWidth = image.naturalWidth;
+        this.backgroundHeight = image.naturalHeight;
+        this.logLine(`background ${relative} ${image.naturalWidth}x${image.naturalHeight} root=${root}`);
         return;
+      } catch (error) {
+        lastError = error;
       }
-      this.backgroundUrl = url;
-      this.backgroundWidth = image.naturalWidth;
-      this.backgroundHeight = image.naturalHeight;
-      this.logLine(`background ${relative} ${image.naturalWidth}x${image.naturalHeight}`);
-    } catch (error) {
-      this.logLine(`background fallback #002554 ${relative}`);
-      this.logError(`background ${relative}`, error);
     }
+    this.logLine(`background fallback #002554 ${relative}`);
+    if (lastError) this.logError(`background ${relative}`, lastError);
   }
 
   private applyDebugQuery(): void {
@@ -379,6 +507,7 @@ export class KioskApp {
       backgroundUrl: this.backgroundUrl,
       backgroundWidth: this.backgroundWidth,
       backgroundHeight: this.backgroundHeight,
+      version: this.appVersion,
     };
   }
 

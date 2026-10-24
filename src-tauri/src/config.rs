@@ -104,6 +104,18 @@ pub fn first_existing(paths: &[PathBuf]) -> Option<PathBuf> {
     paths.iter().find(|path| path.exists()).cloned()
 }
 
+pub fn machine_asset_dir() -> PathBuf {
+    PathBuf::from("C:/DaytonKiosk/assets")
+}
+
+pub fn override_root_if_present(path: &std::path::Path) -> String {
+    if path.is_dir() {
+        path.display().to_string()
+    } else {
+        String::new()
+    }
+}
+
 pub fn first_existing_dir(paths: &[PathBuf]) -> Option<PathBuf> {
     paths.iter().find(|path| path.is_dir()).cloned()
 }
@@ -161,6 +173,16 @@ mod tests {
         let json: Value = serde_json::from_str(&strip_json_comments(raw)).unwrap();
         assert_eq!(json["start"]["mode"], "touch");
         assert_eq!(json["note"], "keep // this");
+    }
+
+    #[test]
+    fn override_root_is_empty_until_the_directory_exists() {
+        let missing = PathBuf::from("/tmp/does-not-exist-dayton-assets");
+        assert_eq!(override_root_if_present(&missing), "");
+        let dir = std::env::temp_dir().join(format!("pose-override-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        assert_eq!(override_root_if_present(&dir), dir.display().to_string());
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]

@@ -18,7 +18,24 @@ import { chooseSides, createSession, lockWordsForCountdown, reduceSession } from
 import type { AppConfig, Athlete, RosterFile, Screen } from "./types";
 import { extractParticipantId, type ParticipantIdConfig } from "./participant";
 import { buildUploadForm, jpegFieldName, uploadEndpoint, uploadFields, uploadFilename } from "./upload";
-import { backgroundObjectPosition, escapeHtml, headshotSlots, PHOTO_RECT, previewFit, renderChrome, STAGE_H, STAGE_W, type ViewModel } from "./ui";
+import { assetSearchRoots } from "./platform";
+import {
+  attractVideoSource,
+  backgroundObjectPosition,
+  escapeHtml,
+  headshotSlots,
+  logicalWindowSize,
+  PHOTO_RECT,
+  previewFit,
+  readPhysicalSize,
+  renderChrome,
+  renderDebug,
+  STAGE_H,
+  STAGE_W,
+  stageScale,
+  stageTransform,
+  type ViewModel,
+} from "./ui";
 
 const base = parseConfig("{}");
 
@@ -392,9 +409,13 @@ describe("defaults", () => {
   });
 });
 
-function chrome(screen: Screen, assets: Partial<AppConfig["assets"]> = {}, backgroundUrl: string | null = "blob:http://localhost/bg"): string {
+function viewFor(
+  screen: Screen,
+  assets: Partial<AppConfig["assets"]> = {},
+  backgroundUrl: string | null = "blob:http://localhost/bg",
+): ViewModel {
   const roster: RosterFile = { version: 1, teams: { mens: [] as Athlete[], womens: [] as Athlete[] } };
-  const view: ViewModel = {
+  return {
     config: { ...base, assets: { ...base.assets, ...assets } },
     session: { ...createSession("mens"), screen },
     roster,
@@ -416,8 +437,12 @@ function chrome(screen: Screen, assets: Partial<AppConfig["assets"]> = {}, backg
     backgroundUrl,
     backgroundWidth: backgroundUrl ? 3840 : 0,
     backgroundHeight: backgroundUrl ? 2320 : 0,
+    version: "0.1.7",
   };
-  return renderChrome(view);
+}
+
+function chrome(screen: Screen, assets: Partial<AppConfig["assets"]> = {}, backgroundUrl: string | null = "blob:http://localhost/bg"): string {
+  return renderChrome(viewFor(screen, assets, backgroundUrl));
 }
 
 describe("background plate", () => {
@@ -445,10 +470,64 @@ describe("background plate", () => {
     }
     expect(chrome("attract", {}, null)).not.toContain("bg-photo");
     expect(chrome("attract", {}, null)).toContain("bg-navy");
-    const withLoop = chrome("attract", { attractVideo: "attract/loop.mp4" });
+    const withLoop = chrome("attract", { attractVideo: "attract/custom.mp4" });
     expect(withLoop).toContain("bg-video");
-    expect(withLoop).toContain("/kiosk-assets/attract/loop.mp4");
-    expect(chrome("pick", { attractVideo: "attract/loop.mp4" })).not.toContain("bg-video");
+    expect(withLoop).toContain("/kiosk-assets/attract/custom.mp4");
+    expect(chrome("pick", { attractVideo: "attract/custom.mp4" })).not.toContain("bg-video");
     expect(chrome("attract", { attractVideo: "   " })).not.toContain("bg-video");
+    expect(chrome("attract", { attractVideo: "attract/loop.mp4" })).not.toContain("bg-video");
+    expect(chrome("attract", { attractVideo: ".\\attract\\loop.mp4" })).not.toContain("bg-video");
+    expect(attractVideoSource("attract/custom.mp4")).toBe("attract/custom.mp4");
+    expect(attractVideoSource(" attract/loop.mp4 ")).toBe("");
+  });
+});
+
+describe("asset search", () => {
+  it("checks the machine folder before the bundled root", () => {
+    expect(assetSearchRoots("C:/DaytonKiosk/assets", "C:/Program/assets")).toEqual([
+      "C:/DaytonKiosk/assets",
+      "C:/Program/assets",
+    ]);
+    expect(assetSearchRoots("", "C:/Program/assets")).toEqual(["C:/Program/assets"]);
+    expect(assetSearchRoots("C:/same", "C:/same")).toEqual(["C:/same"]);
+  });
+});
+
+describe("stage fit", () => {
+  it("scales the stage to the viewport and ignores an unknown size", () => {
+    const scale = Math.min(1600 / STAGE_W, 900 / STAGE_H);
+    expect(stageScale(1600, 900)).toBe(scale);
+    expect(stageTransform(1600, 900)).toBe(`translate(-50%, -50%) scale(${scale})`);
+    expect(stageScale(1920, 1080)).toBe(0.5);
+    expect(stageScale(0, 900)).toBeNull();
+    expect(stageScale(100, 0)).toBeNull();
+    expect(stageScale(-10, 100)).toBeNull();
+    expect(stageScale(Number.NaN, 100)).toBeNull();
+    expect(stageScale(Number.POSITIVE_INFINITY, 100)).toBeNull();
+    expect(stageTransform(0, 900)).toBeNull();
+  });
+
+  it("converts a native window size into css pixels", () => {
+    expect(logicalWindowSize(3200, 1800, 2)).toEqual({ width: 1600, height: 900 });
+    expect(logicalWindowSize(1600, 900, 1)).toEqual({ width: 1600, height: 900 });
+    expect(logicalWindowSize(1600, 900, 0)).toBeNull();
+    expect(logicalWindowSize(1600, 900, Number.NaN)).toBeNull();
+    expect(readPhysicalSize({ width: 3200, height: 1800 })).toEqual({ width: 3200, height: 1800 });
+    expect(readPhysicalSize({ Physical: { width: 10, height: 20 } })).toEqual({ width: 10, height: 20 });
+    expect(readPhysicalSize(null)).toBeNull();
+    expect(readPhysicalSize({ width: "1600", height: 900 })).toBeNull();
+  });
+});
+
+describe("debug overlay", () => {
+  it("shows the running app version", () => {
+    const view = viewFor("attract");
+    view.debugOpen = true;
+    expect(renderDebug(view)).toContain("version 0.1.7");
+    view.debugOpen = false;
+    expect(renderDebug(view)).toBe("");
+    view.debugOpen = true;
+    view.version = "";
+    expect(renderDebug(view)).toContain("version (unknown)");
   });
 });

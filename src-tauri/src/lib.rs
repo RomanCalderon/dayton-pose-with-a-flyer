@@ -1,6 +1,7 @@
 mod cameras;
 mod config;
 mod upload;
+mod webview_profile;
 
 use tauri::{
     webview::{PermissionKind, PermissionResponse},
@@ -9,6 +10,7 @@ use tauri::{
 
 use crate::cameras::CameraList;
 use crate::config::{load_kiosk_config, window_settings};
+use crate::webview_profile::{profile_dir, sync_webview_profile, ProfileSync};
 
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -16,6 +18,7 @@ struct LoadConfigResponse {
     config_text: String,
     config_path: String,
     asset_root: String,
+    asset_override_root: String,
     log_path: String,
 }
 
@@ -34,6 +37,7 @@ fn load_config(app: tauri::AppHandle) -> Result<LoadConfigResponse, String> {
         config_text: loaded.text,
         config_path: loaded.path.display().to_string(),
         asset_root: loaded.asset_root.display().to_string(),
+        asset_override_root: config::override_root_if_present(&config::machine_asset_dir()),
         log_path,
     })
 }
@@ -63,6 +67,47 @@ fn list_cameras() -> CameraList {
 #[tauri::command]
 fn upload_photo(request: upload::UploadPhotoRequest) -> upload::UploadPhotoResponse {
     upload::upload_photo(request)
+}
+
+/// Drop a stale WebView2 profile before the window is created.
+/// `clear_all_browsing_data` deletes asynchronously after navigation and does
+/// not reload, so a cached `http://tauri.localhost` page would already be showing.
+fn prepare_webview_profile(app: &tauri::App) {
+    let version = app.package_info().version.to_string();
+    let Ok(dir) = app.path().app_local_data_dir() else {
+        let line = format!("webview profile skipped version={version} error=local data dir unavailable");
+        eprintln!("{line}");
+        return;
+    };
+    match sync_webview_profile(&dir, &version) {
+        Ok(ProfileSync::Kept) => {
+            note_profile(app, &format!("webview profile kept version={version}"));
+        }
+        Ok(ProfileSync::Cleared { previous }) => {
+            let previous = if previous.is_empty() { "(none)" } else { previous.as_str() };
+            note_profile(
+                app,
+                &format!(
+                    "webview profile cleared previous={previous} version={version} path={}",
+                    profile_dir(&dir).display()
+                ),
+            );
+        }
+        Ok(ProfileSync::Initialized) => {
+            note_profile(app, &format!("webview profile initialized version={version}"));
+        }
+        Err(error) => {
+            note_profile(
+                app,
+                &format!("webview profile clear failed version={version} error={error}"),
+            );
+        }
+    }
+}
+
+fn note_profile(app: &tauri::App, line: &str) {
+    eprintln!("{line}");
+    let _ = append_log(app.handle().clone(), line.to_string());
 }
 
 fn open_main_window(app: &tauri::App) -> tauri::Result<()> {
@@ -95,6 +140,12 @@ fn open_main_window(app: &tauri::App) -> tauri::Result<()> {
                 PermissionResponse::Default
             }
         })
+        .on_web_resource_request(|_request, response| {
+            let value = tauri::http::HeaderValue::from_static("no-store");
+            response
+                .headers_mut()
+                .insert(tauri::http::header::CACHE_CONTROL, value);
+        })
         .build()?;
     Ok(())
 }
@@ -109,6 +160,7 @@ pub fn run() {
             append_log
         ])
         .setup(|app| {
+            prepare_webview_profile(app);
             open_main_window(app)?;
             Ok(())
         })

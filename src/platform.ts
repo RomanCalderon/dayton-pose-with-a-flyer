@@ -1,5 +1,7 @@
+import { getVersion } from "@tauri-apps/api/app";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { version as packageVersion } from "../package.json" with { type: "json" };
 import { parseConfig } from "./config";
 import type { AppConfig, CameraList } from "./types";
 
@@ -7,6 +9,8 @@ export interface RuntimePaths {
   tauri: boolean;
   configPath: string;
   assetRoot: string;
+  /** Machine folder checked before `assetRoot` for a single file. Empty when absent. */
+  assetOverrideRoot: string;
   /** Absolute kiosk.log path in the desktop shell. Empty in the browser. */
   logPath: string;
   config: AppConfig;
@@ -15,6 +19,19 @@ export interface RuntimePaths {
 
 export function isTauri(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+}
+
+/** Shell version from Tauri, or the package version when the page is open in a browser. */
+export async function readAppVersion(): Promise<string> {
+  if (isTauri()) {
+    try {
+      const version = (await getVersion()).trim();
+      if (version) return version;
+    } catch {
+      // Fall through to the package version baked into this frontend.
+    }
+  }
+  return packageVersion;
 }
 
 export function joinAsset(root: string, relative: string): string {
@@ -28,10 +45,25 @@ export function joinAsset(root: string, relative: string): string {
   return `${base}${sep}${rel.split("/").join(sep)}`;
 }
 
-export function assetUrl(paths: RuntimePaths, relative: string): string {
-  const full = joinAsset(paths.assetRoot, relative);
-  if (!paths.tauri) return full;
+export function assetFileUrl(tauri: boolean, root: string, relative: string): string {
+  const full = joinAsset(root, relative);
+  if (!tauri) return full;
   return convertFileSrc(full);
+}
+
+/** Override directory first, then the bundled asset root. Duplicates are dropped. */
+export function assetSearchRoots(overrideRoot: string, assetRoot: string): string[] {
+  const roots: string[] = [];
+  for (const root of [overrideRoot, assetRoot]) {
+    const trimmed = root.trim();
+    if (!trimmed || roots.includes(trimmed)) continue;
+    roots.push(trimmed);
+  }
+  return roots;
+}
+
+export function assetUrl(paths: RuntimePaths, relative: string): string {
+  return assetFileUrl(paths.tauri, paths.assetRoot, relative);
 }
 
 export async function loadRuntime(): Promise<RuntimePaths> {
@@ -43,6 +75,7 @@ export async function loadRuntime(): Promise<RuntimePaths> {
       tauri: false,
       configPath: "/kiosk-config/kiosk.json",
       assetRoot: "/kiosk-assets",
+      assetOverrideRoot: "",
       logPath: "",
       config,
       cameras: {
@@ -57,6 +90,7 @@ export async function loadRuntime(): Promise<RuntimePaths> {
     configText: string;
     configPath: string;
     assetRoot: string;
+    assetOverrideRoot?: string;
     logPath: string;
   }>("load_config");
   const cameras = await invoke<CameraList>("list_cameras");
@@ -64,6 +98,7 @@ export async function loadRuntime(): Promise<RuntimePaths> {
     tauri: true,
     configPath: loaded.configPath,
     assetRoot: loaded.assetRoot,
+    assetOverrideRoot: loaded.assetOverrideRoot ?? "",
     logPath: loaded.logPath,
     config: parseConfig(loaded.configText),
     cameras,

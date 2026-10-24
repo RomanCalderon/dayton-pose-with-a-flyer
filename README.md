@@ -65,7 +65,7 @@ There is no webcam? The photo step shows `CAM-PHOTO-01` and a stand-in guest so 
 5. `%APPDATA%\com.daytonflyers.posewithaflyer\kiosk.json`
 6. the same paths under the Tauri resource directory (on Windows that directory is the exe folder, so this repeats 2 and 3)
 
-Empty `assets.root` uses the first folder that exists: bundled `assets` beside the exe, `resources\assets` beside the exe, then `C:\DaytonKiosk\assets`. Set `assets.root` to an absolute folder when an operator is swapping files without reinstalling. Restart the app after editing.
+Empty `assets.root` uses the first folder that exists for everything except the background plate: bundled `assets` beside the exe, `resources\assets` beside the exe, then `C:\DaytonKiosk\assets`. The background is different: `C:\DaytonKiosk\assets\branding\background.jpg` is tried first when that folder exists, and the bundled file is the fallback. Set `assets.root` to an absolute folder when an operator is swapping the whole tree without reinstalling. Restart the app after editing.
 
 ## Where things live on Windows
 
@@ -80,8 +80,12 @@ The NSIS installer is per-user (`installMode: currentUser`). Tauri v2 puts that 
 | Per-user config override | `%APPDATA%\com.daytonflyers.posewithaflyer\kiosk.json` |
 | Machine override | `C:\DaytonKiosk\kiosk.json` and, for assets, `C:\DaytonKiosk\assets\` |
 | Log file | `%LOCALAPPDATA%\com.daytonflyers.posewithaflyer\logs\kiosk.log` |
+| WebView2 profile | `%LOCALAPPDATA%\com.daytonflyers.posewithaflyer\EBWebView` |
+| WebView2 version marker | `%LOCALAPPDATA%\com.daytonflyers.posewithaflyer\webview-version.txt` |
 
-`%LOCALAPPDATA%` is `C:\Users\<you>\AppData\Local`. `%APPDATA%` is `C:\Users\<you>\AppData\Roaming`. F2 prints the config path and asset root the running process actually resolved, plus the log path. A red strip at the top of the window shows the latest error even when the debug panel is closed. The countdown clock does not wait on those files: athlete clips are fetched into memory (so a missing range request on `http://asset.localhost` cannot stall the timer) and fall back to the PNG still after a timeout.
+`%LOCALAPPDATA%` is `C:\Users\<you>\AppData\Local`. `%APPDATA%` is `C:\Users\<you>\AppData\Roaming`. F2 prints the running app version, the config path and asset root the process actually resolved, and the log path. The boot line in `kiosk.log` includes that version. A red strip at the top of the window shows the latest error even when the debug panel is closed.
+
+WebView2 can keep a previous `http://tauri.localhost` document. On startup the app compares `webview-version.txt` with the running version. A missing or different version deletes only the `EBWebView` folder before the window is created, then writes the new version. Frontend responses also send `Cache-Control: no-store`. Logs and config stay in their own folders. That clear is what lets the new page render at all. It does not, by itself, stop an old `kiosk.json` from playing `attract/loop.mp4` over the plate: that file is a video of the pre-0.1.6 diagonal screen, and v0.1.7 ignores that path. The stage is measured again after load, after the first layout, and on resize and scale changes, using the laid-out viewport and, in the desktop shell, the native window size. A zero size is ignored. If a launch still shows an older screen, quit the app, delete `%LOCALAPPDATA%\com.daytonflyers.posewithaflyer\EBWebView`, and check that `C:\DaytonKiosk\kiosk.json` does not point `assets.attractVideo` at the legacy loop. The countdown clock does not wait on those files: athlete clips are fetched into memory (so a missing range request on `http://asset.localhost` cannot stall the timer) and fall back to the PNG still after a timeout.
 
 Camera pins accept `serial`, `usbPort`, `label`, or `deviceId`. Leave them blank and the photo role uses the first real webcam. `cameras.onMissing` is `fallback` in this prototype so a single webcam still runs. On the arena PC, put each Brio's USB serial in config and set `onMissing` to `error` so a missing camera is never replaced by a guess. `list_cameras` (Windows only) returns each camera's friendly name, symbolic link, USB vendor/product, serial, and port. The browser can only see the Windows friendly name, so a one-time setup still needs to rename the two Brios (for example “Kiosk Brio Photo” and “Kiosk Brio QR”) if you pin by serial. Infrared / Windows Hello devices are flagged and ignored.
 
@@ -98,7 +102,7 @@ Everything the screens read lives under `assets/` (or whatever `assets.root` poi
 | `athletes/<id>_left.mp4` and `_right.mp4` | Stacked-alpha H.264. Color on top, alpha as brightness on the bottom, same width |
 | `athletes/<id>_left.webm` | Optional VP9 with alpha. Used when the mp4 fails, or when the debug overlay prefers WebM |
 | `branding/background.jpg` | Static plate behind attract, pick, preview, and thank-you. Cover-fit. A 16:9 file fills the stage. A taller file is centered and shifted up 31px, matching the Figma crop of the 3840×2320 fill. Countdown and tap-to-adjust keep the live camera instead |
-| `attract/loop.mp4` | Optional. `assets.attractVideo` defaults to empty, which plays nothing. A path plays only on the attract screen, above the plate |
+| `attract/loop.mp4` | Legacy generated picture of the old diagonal screen. The app does not play this path. Any other `assets.attractVideo` path still plays only on the attract screen, above the plate |
 | `frames/takeaway_v1.png` | Transparent PNG composited over the 2560×1440 JPEG |
 | `fx/fire.mp4` | Hidden preview layer |
 | `placeholders/guest.png` | Stand-in when the photo camera is missing |
@@ -210,7 +214,7 @@ Unsigned binaries trip SmartScreen. Choose **More info → Run anyway**. The cam
 - `assets/`, `config/kiosk.json` — bundled content
 - `src/logic.test.ts` — session, idle, camera matching, upload fields
 
-The compositor draws at 2560×1440. DOM chrome is laid out on a 3840×2160 stage and scaled to the window. Stacked-alpha clips are recombined in a shader (color in the top half, luminance alpha in the bottom half, `UNPACK_FLIP_Y`). VP9-alpha clips are sampled as straight alpha. If WebGL2 is missing, a canvas 2D path does the same composite.
+The compositor draws at 2560×1440. DOM chrome is laid out on a 3840×2160 stage and scaled to the window. That scale runs after the page loads, after the first layout, and again on window resize and scale changes. A zero or non-finite size is ignored, so the first measurement cannot stick. In the desktop shell the fit uses the native window size (physical pixels divided by the scale factor) when that size is known. Stacked-alpha clips are recombined in a shader (color in the top half, luminance alpha in the bottom half, `UNPACK_FLIP_Y`). VP9-alpha clips are sampled as straight alpha. If WebGL2 is missing, a canvas 2D path does the same composite.
 
 On the countdown, an athlete stays hidden until that clip fires `playing` and a new frame is presented (`requestVideoFrameCallback`, or `currentTime > 0` when the callback is missing). The paused first frame, the poster, and the PNG still are not drawn during the walk-in, so a clip that starts inside the frame does not sit frozen on screen. Once a frame has been presented, the clip stays up through the last-frame hold. Adjust, the flash, and preview still show that held pose, and a clip that never started falls back to its still or poster there so the photo is not missing an athlete.
 

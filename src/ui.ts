@@ -30,6 +30,45 @@ export interface ViewModel {
   backgroundUrl: string | null;
   backgroundWidth: number;
   backgroundHeight: number;
+  /** Running app version. Tauri `getVersion` in the shell, package.json in the browser. */
+  version: string;
+}
+
+export interface StageBox {
+  width: number;
+  height: number;
+}
+
+/** CSS scale that fits the 3840×2160 stage into a viewport. Null when the size is not usable. */
+export function stageScale(width: number, height: number): number | null {
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return null;
+  const scale = Math.min(width / STAGE_W, height / STAGE_H);
+  if (!Number.isFinite(scale) || scale <= 0) return null;
+  return scale;
+}
+
+export function stageTransform(width: number, height: number): string | null {
+  const scale = stageScale(width, height);
+  if (scale === null) return null;
+  return `translate(-50%, -50%) scale(${scale})`;
+}
+
+/** Physical window pixels divided by the monitor scale factor. */
+export function logicalWindowSize(width: number, height: number, scaleFactor: number): StageBox | null {
+  if (!Number.isFinite(width) || !Number.isFinite(height) || !(scaleFactor > 0) || !Number.isFinite(scaleFactor)) {
+    return null;
+  }
+  return { width: width / scaleFactor, height: height / scaleFactor };
+}
+
+/** Tauri resize payloads are `{ width, height }` or `{ Physical: { width, height } }`. */
+export function readPhysicalSize(value: unknown): StageBox | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as { width?: unknown; height?: unknown; Physical?: { width?: unknown; height?: unknown } };
+  const source = record.Physical ?? record;
+  if (typeof source.width !== "number" || typeof source.height !== "number") return null;
+  if (!Number.isFinite(source.width) || !Number.isFinite(source.height)) return null;
+  return { width: source.width, height: source.height };
 }
 
 export function escapeHtml(value: string): string {
@@ -114,11 +153,20 @@ export function backgroundObjectPosition(
   return `center ${percent}%`;
 }
 
+/** The generated attract loop is a picture of the pre-plate diagonal screen. */
+export const LEGACY_ATTRACT_VIDEO = "attract/loop.mp4";
+
+export function attractVideoSource(value: string): string {
+  const normalized = value.trim().replace(/\\/g, "/").replace(/^\.\//, "");
+  if (normalized === LEGACY_ATTRACT_VIDEO) return "";
+  return value.trim();
+}
+
 function background(view: ViewModel, withVideo: boolean): string {
   const photo = view.backgroundUrl
     ? `<img class="bg-photo" alt="" src="${escapeHtml(view.backgroundUrl)}" style="object-position:${escapeHtml(backgroundObjectPosition(view.backgroundWidth, view.backgroundHeight))}" />`
     : "";
-  const attract = view.config.assets.attractVideo.trim();
+  const attract = attractVideoSource(view.config.assets.attractVideo);
   const video = withVideo && attract
     ? `<video class="bg-video" src="${escapeHtml(view.assetUrl(attract))}" autoplay muted loop playsinline></video>`
     : "";
@@ -379,6 +427,7 @@ export function renderDebug(view: ViewModel): string {
   const logPath = view.logPath || "browser console only";
   return `<aside class="debug">
     <strong>Pose with a Flyer · debug</strong>
+    <div>version ${escapeHtml(view.version || "(unknown)")}</div>
     <div>screen ${escapeHtml(session.screen)} · mode ${escapeHtml(view.config.start.mode)} · roster ${escapeHtml(session.roster)}</div>
     <div>scan ${escapeHtml(session.participantUrl ?? "(none)")}</div>
     <div>participant_id ${escapeHtml(session.participantId ?? "(none)")}</div>
