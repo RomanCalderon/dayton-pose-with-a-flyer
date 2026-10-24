@@ -1,8 +1,11 @@
+import { countdownDue, countdownRemainingMs, countdownShownSecond } from "./clock";
 import { defaultTransform } from "./placement";
 import { hitTest, clampTransform } from "./placement";
 import { matchCamera } from "./cameras";
 import { isHttpUrl } from "./cameras";
 import { idleTimeoutMs, stillThereMs, thanksTimeoutMs } from "./idle";
+import { formatLogLine, remember } from "./log";
+import { fetchAssetBlob, mediaIsSeekable } from "./media";
 import { invoke } from "@tauri-apps/api/core";
 import { assetUrl, isTauri, loadRuntime, setFullscreen, type RuntimePaths } from "./platform";
 import { getQrReader, grabFrame } from "./qr";
@@ -21,8 +24,10 @@ import {
   STAGE_W,
   canvasMode,
   clipSize,
+  escapeHtml,
   findAthlete,
   renderChrome,
+  renderDebug,
   type ViewModel,
 } from "./ui";
 
@@ -30,6 +35,8 @@ interface PointerPoint {
   x: number;
   y: number;
 }
+
+type ClipSource = "loading" | "blob" | "direct" | "poster";
 
 interface LoadedClip {
   video: HTMLVideoElement;
@@ -40,6 +47,11 @@ interface LoadedClip {
   file: string;
   width: number;
   height: number;
+  sourceNote: ClipSource;
+  blobUrl: string | null;
+  /** Bumped to ignore a blob fetch that finished after the clip was replaced. */
+  generation: number;
+  triedWebm: boolean;
 }
 
 export class KioskApp {
@@ -52,6 +64,8 @@ export class KioskApp {
   private chrome!: HTMLElement;
   private canvas!: HTMLCanvasElement;
   private mediaPool!: HTMLElement;
+  private debugHost!: HTMLElement;
+  private statusHost!: HTMLElement;
   private photoVideo: HTMLVideoElement | null = null;
   private qrVideo: HTMLVideoElement | null = null;
   private frozenCamera: HTMLCanvasElement | null = null;
@@ -67,7 +81,13 @@ export class KioskApp {
   private flashOpacity = 0;
   private sending = false;
   private raf = 0;
+  private painting = false;
   private countdownStarted = 0;
+  private countdownTimer = 0;
+  private paintThrows = false;
+  private logLines: string[] = [];
+  private logPath = "";
+  private recentLogs = new Map<string, number>();
   private walkStarted = false;
   private frozen = false;
   private capturing = false;
@@ -88,12 +108,20 @@ export class KioskApp {
     this.chrome = this.root.querySelector("#chrome") as HTMLElement;
     this.canvas = this.root.querySelector("#gl") as HTMLCanvasElement;
     this.mediaPool = this.root.querySelector("#media-pool") as HTMLElement;
+    this.debugHost = document.createElement("div");
+    this.debugHost.id = "debug-host";
+    this.statusHost = document.createElement("div");
+    this.statusHost.id = "status-host";
+    document.body.append(this.debugHost, this.statusHost);
     this.paths = await loadRuntime();
     this.config = this.paths.config;
+    this.logPath = this.paths.logPath;
     this.applyDebugQuery();
     this.debugOpen = this.config.features.debugOverlay;
     this.session = createSession(this.config.roster.default);
     this.compositor = new Compositor(this.canvas, this.config.output.width, this.config.output.height);
+    this.compositor.onError = (error) => this.logError("webgl", error);
+    this.logLine(`boot config=${this.paths.configPath} assets=${this.paths.assetRoot}`);
     this.bind();
     this.fit();
     await this.loadRoster();
@@ -113,6 +141,13 @@ export class KioskApp {
     this.stage.addEventListener("pointerup", (event) => this.onPointerUp(event));
     this.stage.addEventListener("pointercancel", (event) => this.onPointerUp(event));
     window.addEventListener("keydown", (event) => this.onKey(event));
+    this.debugHost.addEventListener("click", (event) => this.onClick(event));
+    window.addEventListener("error", (event) => {
+      this.logError("window", event.error ?? event.message);
+    });
+    window.addEventListener("unhandledrejection", (event) => {
+      this.logError("unhandledrejection", event.reason);
+    });
     const bump = () => this.armIdle();
     window.addEventListener("pointerdown", bump);
     window.addEventListener("keydown", bump);
@@ -141,6 +176,7 @@ export class KioskApp {
     if (mode === "touch" || mode === "qr") {
       this.config = { ...this.config, start: { mode } };
     }
+    if (params.get("paintThrows") === "1") this.paintThrows = true;
   }
 
   private applyFixture(): void {
@@ -191,10 +227,8 @@ export class KioskApp {
   }
 
   private onScreenChanged(previous: Session["screen"]): void {
-    if (previous === "countdown" || previous === "flash") {
-      cancelAnimationFrame(this.raf);
-      this.pauseClips();
-    }
+    if (previous === "countdown" || previous === "flash") this.pauseClips();
+    if (!this.screenNeedsFrames()) this.stopFrames();
     if (this.session.screen === "attract") {
       this.stopPhoto();
       this.frozenCamera = null;
@@ -214,7 +248,31 @@ export class KioskApp {
     const mode = canvasMode(this.session.screen);
     this.canvas.className = `mode-${mode}`;
     this.mountQrVideo();
-    if (mode !== "hidden") this.paint();
+    this.renderDebugPanel();
+    this.renderStatusStrip();
+    if (mode !== "hidden") {
+      try {
+        this.safePaint();
+      } catch (error) {
+        this.logError("paint", error);
+      }
+    }
+  }
+
+  private renderDebugPanel(): void {
+    this.debugHost.innerHTML = renderDebug(this.view());
+    this.refreshDebugLive();
+  }
+
+  private refreshDebugLive(): void {
+    const live = this.debugHost.querySelector("#debug-live");
+    if (!live) return;
+    live.textContent = `${this.videoStatusText()}\n${this.logLines.slice(-8).join("\n")}`.trim();
+  }
+
+  private renderStatusStrip(): void {
+    const error = [...this.logLines].reverse().find((line) => line.includes(" ERROR "));
+    this.statusHost.innerHTML = error ? `<div class="status-strip">${escapeHtml(error)}</div>` : "";
   }
 
   private view(): ViewModel {
@@ -230,7 +288,9 @@ export class KioskApp {
       debugOpen: this.debugOpen,
       cameraSummary: this.cameraSummary(),
       preferWebm: this.preferWebm,
-      pathsLabel: this.paths ? `${this.paths.configPath} · assets ${this.paths.assetRoot}` : "",
+      configPath: this.paths?.configPath ?? "",
+      assetRoot: this.paths?.assetRoot ?? "",
+      logPath: this.logPath || this.paths?.logPath || "",
       hasPhoto: Boolean(this.photoVideo || this.frozenCamera),
       flashOpacity: this.flashOpacity,
     };
@@ -267,7 +327,7 @@ export class KioskApp {
     else if (action === "scale") this.nudgeScale(Number(target.dataset.dir ?? "1"));
     else if (action === "toggle-webm") {
       this.preferWebm = !this.preferWebm;
-      this.clips.clear();
+      this.dropClips();
       this.render();
     } else if (action === "toggle-plusminus") {
       this.config = {
@@ -279,8 +339,13 @@ export class KioskApp {
   }
 
   private onKey(event: KeyboardEvent): void {
-    if (!this.config.debug.allowKeyboard) return;
     const key = event.key;
+    if ((key === "n" || key === "N") && this.session.screen === "countdown") {
+      event.preventDefault();
+      this.skipCountdown();
+      return;
+    }
+    if (!this.config.debug.allowKeyboard) return;
     if (key === "F2") {
       event.preventDefault();
       this.debugOpen = !this.debugOpen;
@@ -310,10 +375,6 @@ export class KioskApp {
     }
     if (key === "Enter") {
       this.primaryAction();
-      return;
-    }
-    if ((key === "n" || key === "N") && this.session.screen === "countdown") {
-      this.countdownStarted = performance.now() - (this.config.timing.countdownFrom - 0.05) * 1000;
       return;
     }
     if (this.session.screen === "pick" && /^[1-9]$/.test(key)) {
@@ -426,76 +487,138 @@ export class KioskApp {
       if (!clip) continue;
       clip.still = null;
       clip.video.pause();
-      try {
-        clip.video.currentTime = 0;
-      } catch {
-        // The element may not have metadata yet. play() will start at 0.
-      }
+      rewindIfSeekable(clip.video);
     }
-    cancelAnimationFrame(this.raf);
-    const tick = (now: number) => {
-      if (this.session.screen !== "countdown") return;
-      const elapsed = (now - this.countdownStarted) / 1000;
-      const remaining = this.config.timing.countdownFrom - elapsed;
-      if (remaining <= 0) {
-        this.capture();
-        return;
-      }
-      const display = Math.max(1, Math.ceil(remaining - 1e-6));
-      if (display !== this.session.countdown) {
-        this.session = reduceSession(this.session, { type: "countdown", seconds: display });
-        this.render();
-      }
-      const walking = display <= this.config.timing.walkInStartsAt;
-      if (walking && !this.walkStarted) {
-        this.walkStarted = true;
-        for (const clip of this.activeClips()) void clip.video.play().catch(() => undefined);
-      }
-      const freeze = remaining <= this.config.timing.freezeBeforeCaptureMs / 1000;
-      if (freeze && !this.frozen) {
-        this.frozen = true;
-        void this.holdLastFrame();
-      }
-      this.paint();
-      this.raf = requestAnimationFrame(tick);
-    };
-    this.raf = requestAnimationFrame(tick);
+    this.stopCountdownClock();
+    this.countdownTimer = window.setInterval(() => this.tickCountdown(), 100);
+    this.tickCountdown();
+    this.ensurePaintLoop();
+  }
+
+  /** Wall clock. A thrown paint cannot stop this interval. */
+  private tickCountdown(): void {
+    if (this.session.screen !== "countdown") {
+      this.stopCountdownClock();
+      return;
+    }
+    const remaining = countdownRemainingMs(
+      this.countdownStarted,
+      performance.now(),
+      this.config.timing.countdownFrom,
+    );
+    if (countdownDue(remaining)) {
+      this.capture();
+      return;
+    }
+    const display = countdownShownSecond(remaining);
+    if (display !== this.session.countdown) {
+      this.session = reduceSession(this.session, { type: "countdown", seconds: display });
+      this.render();
+    }
+    if (display <= this.config.timing.walkInStartsAt) this.startWalk();
+    if (remaining <= this.config.timing.freezeBeforeCaptureMs && !this.frozen) {
+      this.frozen = true;
+      void this.holdLastFrame();
+    }
+    this.refreshDebugLive();
+  }
+
+  private skipCountdown(): void {
+    if (this.session.screen !== "countdown") return;
+    this.logLine("skip countdown");
+    this.capture();
   }
 
   private capture(): void {
     if (this.capturing || this.session.screen !== "countdown") return;
     this.capturing = true;
-    void this.finishCapture();
+    this.stopCountdownClock();
+    void this.finishCapture().catch((error) => {
+      this.logError("capture", error);
+      if (this.session.screen === "countdown") this.forceFlash();
+    });
   }
 
   private async finishCapture(): Promise<void> {
-    await this.holdLastFrame();
-    if (this.session.screen !== "countdown") return;
-    if (this.photoVideo && this.photoVideo.videoWidth > 0) {
-      const snap = document.createElement("canvas");
-      snap.width = this.photoVideo.videoWidth;
-      snap.height = this.photoVideo.videoHeight;
-      snap.getContext("2d")?.drawImage(this.photoVideo, 0, 0);
-      this.frozenCamera = snap;
+    try {
+      await Promise.race([this.holdLastFrame(), wait(800)]);
+    } catch (error) {
+      this.logError("holdLastFrame", error);
     }
+    if (this.session.screen !== "countdown") {
+      this.capturing = false;
+      return;
+    }
+    try {
+      if (this.photoVideo && this.photoVideo.readyState >= 2 && this.photoVideo.videoWidth > 0) {
+        this.frozenCamera = snapshotVideo(this.photoVideo);
+      }
+    } catch (error) {
+      this.logError("camera snapshot", error);
+    }
+    this.forceFlash();
+  }
+
+  private forceFlash(): void {
+    if (this.session.screen !== "countdown") return;
     this.pauseClips();
     this.session = reduceSession(this.session, { type: "flash" });
     this.flashOpacity = 0.92;
     this.render();
+    this.ensurePaintLoop();
     const started = performance.now();
     const fade = (now: number) => {
-      const t = (now - started) / this.config.timing.flashMs;
+      if (this.session.screen !== "flash") return;
+      const t = (now - started) / Math.max(1, this.config.timing.flashMs);
       this.flashOpacity = Math.max(0, 0.92 * (1 - t));
       const flash = this.chrome.querySelector<HTMLElement>(".flash");
       if (flash) flash.style.opacity = String(this.flashOpacity);
-      this.paint();
+      this.safePaint();
       if (t < 1) requestAnimationFrame(fade);
       else this.dispatch({ type: "flashDone" });
     };
     requestAnimationFrame(fade);
   }
 
-  private paint(): void {
+  private screenNeedsFrames(): boolean {
+    return this.session.screen === "countdown" || this.session.screen === "flash";
+  }
+
+  private stopFrames(): void {
+    cancelAnimationFrame(this.raf);
+    this.painting = false;
+    this.stopCountdownClock();
+  }
+
+  private stopCountdownClock(): void {
+    window.clearInterval(this.countdownTimer);
+    this.countdownTimer = 0;
+  }
+
+  private ensurePaintLoop(): void {
+    if (this.painting || !this.screenNeedsFrames()) return;
+    this.painting = true;
+    const frame = () => {
+      if (!this.screenNeedsFrames()) {
+        this.painting = false;
+        return;
+      }
+      this.safePaint();
+      this.raf = requestAnimationFrame(frame);
+    };
+    this.raf = requestAnimationFrame(frame);
+  }
+
+  private safePaint(): void {
+    try {
+      this.paintFrame();
+    } catch (error) {
+      this.logError("paint", error);
+    }
+  }
+
+  private paintFrame(): void {
+    if (this.paintThrows) throw new Error("debug paint throw");
     const background = this.backgroundLayer();
     const athletes = this.athleteLayers();
     this.compositor.draw(background, athletes);
@@ -575,7 +698,7 @@ export class KioskApp {
     const waits = this.activeClips().map((clip) => this.parkOnLastFrame(clip));
     if (waits.length === 0) return;
     await Promise.all(waits);
-    this.paint();
+    this.safePaint();
   }
 
   private parkOnLastFrame(clip: LoadedClip): Promise<void> {
@@ -586,7 +709,10 @@ export class KioskApp {
       return Promise.resolve();
     }
     const target = Math.max(0, video.duration - 0.05);
-    const canSeek = video.seekable.length > 0 && video.seekable.end(video.seekable.length - 1) >= target;
+    const canSeek = mediaIsSeekable(
+      video.seekable.length,
+      video.seekable.length > 0 ? video.seekable.end(video.seekable.length - 1) : 0,
+    ) && video.seekable.end(video.seekable.length - 1) >= target;
     if (canSeek) {
       return new Promise((resolve) => {
         let settled = false;
@@ -650,9 +776,8 @@ export class KioskApp {
     video.preload = "auto";
     video.width = meta?.width ?? 360;
     video.height = (meta?.height ?? 640) * (layout === "stacked-alpha" ? 2 : 1);
-    video.src = assetUrl(this.paths, file);
     const poster = document.createElement("img");
-    poster.src = assetUrl(this.paths, file.replace(/\.mp4$|\.webm$/, ".png"));
+    poster.src = assetUrl(this.paths, posterPath(file));
     const clip: LoadedClip = {
       video,
       poster,
@@ -661,32 +786,139 @@ export class KioskApp {
       file,
       width: meta?.width ?? 360,
       height: meta?.height ?? 640,
+      sourceNote: "loading",
+      blobUrl: null,
+      generation: 1,
+      triedWebm: Boolean(this.preferWebm && webm),
     };
-    const reveal = () => {
-      const holding = this.session.screen === "adjust" || this.session.screen === "preview" || this.session.screen === "flash";
-      if (holding && video.duration && video.currentTime < 0.2) {
-        try {
-          video.currentTime = Math.max(0, video.duration - 0.05);
-        } catch {
-          // Seeking can throw before the media is seekable.
-        }
-      }
-      if (this.session.screen !== "attract" && this.session.screen !== "pick" && this.session.screen !== "thanks") {
-        this.paint();
-      }
-    };
-    video.addEventListener("loadeddata", reveal);
-    poster.addEventListener("load", reveal);
-    video.addEventListener("error", () => {
-      if (webm && video.src.indexOf(webm) === -1) {
-        clip.layout = "vp9-alpha";
-        video.src = assetUrl(this.paths, webm);
-      }
+    video.addEventListener("loadeddata", () => {
+      this.logLine(`clip ready ${clip.file} readyState=${video.readyState} ${video.videoWidth}x${video.videoHeight} ${clip.sourceNote}`);
+      this.revealClip(clip);
     });
-    video.load();
+    video.addEventListener("error", () => {
+      const code = video.error?.code ?? 0;
+      this.logError(`clip ${clip.file}`, `media error ${code}`);
+      if (webm && !clip.triedWebm) {
+        clip.triedWebm = true;
+        clip.layout = "vp9-alpha";
+        clip.generation += 1;
+        void this.attachClipVideo(clip, webm, clip.generation);
+        return;
+      }
+      this.fallBackToPoster(clip);
+    });
+    poster.addEventListener("load", () => this.revealClip(clip));
     this.mediaPool.append(video, poster);
     this.clips.set(key, clip);
+    void this.attachClipVideo(clip, file, clip.generation);
     return clip;
+  }
+
+  private async attachClipVideo(clip: LoadedClip, file: string, generation: number): Promise<void> {
+    const direct = assetUrl(this.paths, file);
+    clip.file = file;
+    clip.sourceNote = "loading";
+    try {
+      const blob = await fetchAssetBlob(direct, 8000);
+      if (generation !== clip.generation) return;
+      if (clip.blobUrl) URL.revokeObjectURL(clip.blobUrl);
+      const url = URL.createObjectURL(blob);
+      clip.blobUrl = url;
+      clip.sourceNote = "blob";
+      this.assignVideoSrc(clip, url);
+      this.logLine(`clip blob ${file} bytes=${blob.size}`);
+    } catch (error) {
+      if (generation !== clip.generation) return;
+      this.logError(`clip blob ${file}`, error);
+      clip.sourceNote = "direct";
+      this.assignVideoSrc(clip, direct);
+      this.logLine(`clip direct ${file}`);
+      this.armPosterFallback(clip, generation);
+    }
+  }
+
+  private assignVideoSrc(clip: LoadedClip, url: string): void {
+    clip.video.src = url;
+    clip.video.load();
+  }
+
+  private armPosterFallback(clip: LoadedClip, generation: number): void {
+    window.setTimeout(() => {
+      if (generation !== clip.generation) return;
+      if (clip.video.readyState >= 2 && clip.video.videoWidth > 0) return;
+      this.logLine(`clip timeout ${clip.file} readyState=${clip.video.readyState}`);
+      this.fallBackToPoster(clip);
+    }, 4500);
+  }
+
+  private fallBackToPoster(clip: LoadedClip): void {
+    clip.sourceNote = "poster";
+    clip.generation += 1;
+    if (clip.blobUrl) {
+      URL.revokeObjectURL(clip.blobUrl);
+      clip.blobUrl = null;
+    }
+    clip.video.pause();
+    clip.video.removeAttribute("src");
+    clip.video.load();
+    this.logLine(`clip poster ${clip.file}`);
+    this.revealClip(clip);
+  }
+
+  private revealClip(clip: LoadedClip): void {
+    const holding = this.session.screen === "adjust" || this.session.screen === "preview" || this.session.screen === "flash";
+    const video = clip.video;
+    if (holding && Number.isFinite(video.duration) && video.duration > 0 && video.currentTime < 0.2) {
+      const target = Math.max(0, video.duration - 0.05);
+      if (mediaIsSeekable(video.seekable.length, video.seekable.length > 0 ? video.seekable.end(0) : 0)) {
+        try {
+          video.currentTime = target;
+        } catch (error) {
+          this.logError(`seek ${clip.file}`, error);
+        }
+      }
+    }
+    if (this.session.screen !== "attract" && this.session.screen !== "pick" && this.session.screen !== "thanks") {
+      this.safePaint();
+    }
+    this.refreshDebugLive();
+  }
+
+  private dropClips(): void {
+    for (const clip of this.clips.values()) this.releaseClip(clip);
+    this.clips.clear();
+  }
+
+  private releaseClip(clip: LoadedClip): void {
+    clip.generation += 1;
+    clip.video.pause();
+    clip.video.removeAttribute("src");
+    clip.video.load();
+    clip.video.remove();
+    clip.poster?.remove();
+    if (clip.blobUrl) URL.revokeObjectURL(clip.blobUrl);
+  }
+
+  private startWalk(): void {
+    if (this.walkStarted) return;
+    this.walkStarted = true;
+    for (const clip of this.activeClips()) this.playClip(clip);
+  }
+
+  private playClip(clip: LoadedClip): void {
+    const video = clip.video;
+    if (clip.sourceNote === "poster") return;
+    if (video.readyState >= 2) {
+      void video.play().catch((error) => this.logError(`play ${clip.file}`, error));
+      return;
+    }
+    this.logLine(`clip waiting ${clip.file} readyState=${video.readyState} ${clip.sourceNote}`);
+    const onReady = () => {
+      video.removeEventListener("loadeddata", onReady);
+      if (!this.walkStarted || this.session.screen !== "countdown") return;
+      void video.play().catch((error) => this.logError(`play ${clip.file}`, error));
+    };
+    video.addEventListener("loadeddata", onReady);
   }
 
   private prewarmSelected(): void {
@@ -704,7 +936,7 @@ export class KioskApp {
         .filter((device) => device.kind === "videoinput")
         .map((device) => ({ deviceId: device.deviceId, label: device.label, kind: device.kind }));
     } catch (error) {
-      console.warn("enumerateDevices failed", error);
+      this.logError("enumerateDevices", error);
     }
   }
 
@@ -796,6 +1028,7 @@ export class KioskApp {
     }
     this.photoError = null;
     this.photoVideo = video;
+    this.logLine(`photo camera readyState=${video.readyState} ${video.videoWidth}x${video.videoHeight}`);
     this.render();
   }
 
@@ -814,7 +1047,7 @@ export class KioskApp {
     if (this.sending || this.session.screen !== "preview") return;
     this.sending = true;
     try {
-      this.paint();
+      this.safePaint();
       if (this.config.start.mode === "touch") {
         this.uploadStatus = "discarded (touch mode)";
         this.dispatch({ type: "send" });
@@ -928,7 +1161,7 @@ export class KioskApp {
       );
       this.session = reduceSession(this.session, { type: "setTransform", id: this.pinch.id, transform: next });
       this.render();
-      this.paint();
+      this.safePaint();
       return;
     }
     if (!this.drag || this.pointers.size !== 1) return;
@@ -947,7 +1180,7 @@ export class KioskApp {
     this.drag.lastY = point.y;
     this.session = reduceSession(this.session, { type: "setTransform", id: this.drag.id, transform: next });
     this.render();
-    this.paint();
+    this.safePaint();
   }
 
   private onPointerUp(event: PointerEvent): void {
@@ -982,7 +1215,7 @@ export class KioskApp {
     );
     this.session = reduceSession(this.session, { type: "setTransform", id, transform: next });
     this.render();
-    this.paint();
+    this.safePaint();
   }
 
   private nudgeScale(direction: number): void {
@@ -997,7 +1230,7 @@ export class KioskApp {
     );
     this.session = reduceSession(this.session, { type: "setTransform", id, transform: next });
     this.render();
-    this.paint();
+    this.safePaint();
   }
 
   private cycleAthlete(): void {
@@ -1007,19 +1240,94 @@ export class KioskApp {
     const next = ids[(index + 1) % ids.length];
     this.session = reduceSession(this.session, { type: "selectAdjust", id: next });
     this.render();
-    this.paint();
+    this.safePaint();
+  }
+
+  private videoStatusText(): string {
+    const gl = this.compositor
+      ? `webgl ${this.compositor.usingWebGL ? "on" : "off"}${this.compositor.contextLost ? " lost" : ""}`
+      : "webgl ?";
+    const photo = this.photoVideo
+      ? `photo ready=${this.photoVideo.readyState} ${this.photoVideo.videoWidth}x${this.photoVideo.videoHeight}`
+      : "photo (none)";
+    const clips = this.activeClips();
+    const rows = clips.length === 0
+      ? ["clips (none)"]
+      : clips.map((clip) => {
+          const video = clip.video;
+          const err = video.error ? ` mediaError=${video.error.code}` : "";
+          const duration = Number.isFinite(video.duration) ? video.duration.toFixed(2) : "?";
+          return `${clip.file} ${clip.sourceNote} ready=${video.readyState} t=${video.currentTime.toFixed(2)}/${duration}${err}`;
+        });
+    return [gl, photo, ...rows].join("\n");
+  }
+
+  private logLine(message: string): void {
+    const line = formatLogLine(new Date(), message);
+    this.logLines = remember(this.logLines, line, 40);
+    console.warn(line);
+    if (this.debugHost) this.refreshDebugLive();
+    if (this.statusHost) this.renderStatusStrip();
+    void this.persistLog(line);
+  }
+
+  private logError(where: string, error: unknown): void {
+    const detail = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+    const key = `${where}: ${detail}`;
+    const now = performance.now();
+    const prev = this.recentLogs.get(key) ?? Number.NEGATIVE_INFINITY;
+    if (now - prev < 2000) return;
+    this.recentLogs.set(key, now);
+    this.logLine(`ERROR ${key}`);
+  }
+
+  private async persistLog(line: string): Promise<void> {
+    if (!isTauri()) return;
+    try {
+      const path = await invoke<string>("append_log", { line });
+      if (path && path !== this.logPath) {
+        this.logPath = path;
+        this.refreshDebugLive();
+      }
+    } catch (error) {
+      console.warn("append_log failed", error);
+    }
   }
 }
 
 function snapshotVideo(video: HTMLVideoElement): HTMLCanvasElement | null {
-  if (video.videoWidth === 0 || video.videoHeight === 0) return null;
+  if (video.readyState < 2 || video.videoWidth === 0 || video.videoHeight === 0) return null;
   const canvas = document.createElement("canvas");
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
   const ctx = canvas.getContext("2d");
   if (!ctx) return null;
-  ctx.drawImage(video, 0, 0);
+  try {
+    ctx.drawImage(video, 0, 0);
+  } catch {
+    return null;
+  }
   return canvas;
+}
+
+function rewindIfSeekable(video: HTMLVideoElement): void {
+  const end = video.seekable.length > 0 ? video.seekable.end(video.seekable.length - 1) : 0;
+  if (!mediaIsSeekable(video.seekable.length, end)) return;
+  try {
+    video.currentTime = 0;
+  } catch {
+    // Seeking can throw before the media element accepts a position.
+  }
+}
+
+function posterPath(file: string): string {
+  return file.replace(/\.mp4$|\.webm$/, ".png");
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
 }
 
 async function openStream(

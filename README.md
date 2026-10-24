@@ -30,7 +30,7 @@ These are on whenever `debug.allowKeyboard` is true (the prototype default).
 | `1`–`9` | Toggle that headshot on the pick screen |
 | `Esc` | Reset to the attract loop and clear the session |
 | `Backspace` | Go back |
-| `N` | Skip the countdown and capture |
+| `N` | Skip the countdown and capture immediately. This works even when the camera or athlete clips are not ready |
 | Arrow keys | Nudge the selected athlete (Shift moves further) |
 | `[` / `]` | Scale the selected athlete down / up |
 | `Tab` | Select the other athlete on the adjust screen |
@@ -58,12 +58,30 @@ There is no webcam? The photo step shows `CAM-PHOTO-01` and a stand-in guest so 
 
 `config/kiosk.json` is the bundled file. Comments are allowed. The app uses the first file that exists:
 
-1. `C:/DaytonKiosk/kiosk.json`
+1. `C:\DaytonKiosk\kiosk.json`
 2. `kiosk.json` next to the executable
-3. the per-user app config directory
-4. the bundled file
+3. `config\kiosk.json` next to the executable (this is the file the NSIS installer ships)
+4. `resources\config\kiosk.json` next to the executable
+5. `%APPDATA%\com.daytonflyers.posewithaflyer\kiosk.json`
+6. the same paths under the Tauri resource directory (on Windows that directory is the exe folder, so this repeats 2 and 3)
 
-Empty `assets.root` uses the bundled `assets` directory (then `C:/DaytonKiosk/assets` if you create it). Set `assets.root` to an absolute folder when an operator is swapping files without reinstalling. Restart the app after editing.
+Empty `assets.root` uses the first folder that exists: bundled `assets` beside the exe, `resources\assets` beside the exe, then `C:\DaytonKiosk\assets`. Set `assets.root` to an absolute folder when an operator is swapping files without reinstalling. Restart the app after editing.
+
+## Where things live on Windows
+
+The NSIS installer is per-user (`installMode: currentUser`). Tauri v2 puts that install in the product-name folder under Local AppData, and on Windows `resource_dir()` is the folder that contains the exe, so the bundled files sit beside `pose-with-a-flyer.exe` rather than in a nested `resources` directory.
+
+| What | Path |
+| --- | --- |
+| Install directory | `%LOCALAPPDATA%\Pose with a Flyer\` |
+| Executable | `%LOCALAPPDATA%\Pose with a Flyer\pose-with-a-flyer.exe` |
+| Bundled assets | `%LOCALAPPDATA%\Pose with a Flyer\assets\` |
+| Bundled config | `%LOCALAPPDATA%\Pose with a Flyer\config\kiosk.json` |
+| Per-user config override | `%APPDATA%\com.daytonflyers.posewithaflyer\kiosk.json` |
+| Machine override | `C:\DaytonKiosk\kiosk.json` and, for assets, `C:\DaytonKiosk\assets\` |
+| Log file | `%LOCALAPPDATA%\com.daytonflyers.posewithaflyer\logs\kiosk.log` |
+
+`%LOCALAPPDATA%` is `C:\Users\<you>\AppData\Local`. `%APPDATA%` is `C:\Users\<you>\AppData\Roaming`. F2 prints the config path and asset root the running process actually resolved, plus the log path. A red strip at the top of the window shows the latest error even when the debug panel is closed. The countdown clock does not wait on those files: athlete clips are fetched into memory (so a missing range request on `http://asset.localhost` cannot stall the timer) and fall back to the PNG still after a timeout.
 
 Camera pins accept `serial`, `usbPort`, `label`, or `deviceId`. Leave them blank and the photo role uses the first real webcam. `cameras.onMissing` is `fallback` in this prototype so a single webcam still runs. On the arena PC, put each Brio's USB serial in config and set `onMissing` to `error` so a missing camera is never replaced by a guess. `list_cameras` (Windows only) returns each camera's friendly name, symbolic link, USB vendor/product, serial, and port. The browser can only see the Windows friendly name, so a one-time setup still needs to rename the two Brios (for example “Kiosk Brio Photo” and “Kiosk Brio QR”) if you pin by serial. Infrared / Windows Hello devices are flagged and ignored.
 

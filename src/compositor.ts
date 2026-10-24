@@ -69,13 +69,22 @@ interface TextureSlot {
   source: CanvasImageSource;
 }
 
+interface VideoCopy {
+  canvas: HTMLCanvasElement;
+  drawn: boolean;
+}
+
 export class Compositor {
   readonly canvas: HTMLCanvasElement;
+  /** Per-frame failures are reported here and do not stop the caller. */
+  onError: ((error: unknown) => void) | null = null;
   private gl: WebGL2RenderingContext | null = null;
   private program: WebGLProgram | null = null;
   private buffer: WebGLBuffer | null = null;
   private textures = new WeakMap<CanvasImageSource, TextureSlot>();
+  private videoCopies = new WeakMap<HTMLVideoElement, VideoCopy>();
   private fallback: CanvasRenderingContext2D | null = null;
+  private lost = false;
   readonly width: number;
   readonly height: number;
 
@@ -106,18 +115,35 @@ export class Compositor {
     gl.enableVertexAttribArray(1);
     gl.vertexAttribPointer(1, 2, gl.FLOAT, false, 16, 8);
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    canvas.addEventListener("webglcontextlost", (event) => {
+      event.preventDefault();
+      this.lost = true;
+      this.report(new Error("webglcontextlost"));
+    });
+    canvas.addEventListener("webglcontextrestored", () => {
+      this.lost = false;
+    });
   }
 
   get usingWebGL(): boolean {
-    return this.gl !== null;
+    return this.gl !== null && !this.contextLost;
+  }
+
+  get contextLost(): boolean {
+    return this.lost || Boolean(this.gl?.isContextLost());
   }
 
   draw(background: BackgroundLayer | null, athletes: AthleteLayer[]): void {
-    if (this.gl && this.program) {
-      this.drawGl(background, athletes);
-      return;
+    try {
+      if (this.gl && this.program) {
+        if (this.gl.isContextLost()) return;
+        this.drawGl(background, athletes);
+        return;
+      }
+      this.draw2d(background, athletes);
+    } catch (error) {
+      this.report(error);
     }
-    this.draw2d(background, athletes);
   }
 
   private drawGl(background: BackgroundLayer | null, athletes: AthleteLayer[]): void {
@@ -130,27 +156,35 @@ export class Compositor {
     gl.useProgram(program);
     gl.disable(gl.BLEND);
     if (background && sourceReady(background.source)) {
-      const cover = fitRect(background.fit, background.width, background.height, this.width, this.height);
-      this.drawQuad(background.source, cover, 0, false, [0, 0, 0, 0], background.mirror);
+      try {
+        const cover = fitRect(background.fit, background.width, background.height, this.width, this.height);
+        this.drawQuad(background.source, cover, 0, false, [0, 0, 0, 0], background.mirror);
+      } catch (error) {
+        this.report(error);
+      }
     }
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
     for (const athlete of athletes) {
       if (!sourceReady(athlete.source)) continue;
-      const bounds = layerBounds(athlete);
-      if (athlete.outline) {
-        const pad = 0.045;
-        const outlined: Bounds = {
-          left: bounds.left - bounds.width * pad,
-          top: bounds.top - bounds.height * pad,
-          width: bounds.width * (1 + pad * 2),
-          height: bounds.height * (1 + pad * 2),
-        };
+      try {
+        const bounds = layerBounds(athlete);
+        if (athlete.outline) {
+          const pad = 0.045;
+          const outlined: Bounds = {
+            left: bounds.left - bounds.width * pad,
+            top: bounds.top - bounds.height * pad,
+            width: bounds.width * (1 + pad * 2),
+            height: bounds.height * (1 + pad * 2),
+          };
+          const mode = athlete.layout === "stacked-alpha" ? 1 : 2;
+          this.drawQuad(athlete.source, outlined, mode, false, [0, 0.675, 0.925, 1], false);
+        }
         const mode = athlete.layout === "stacked-alpha" ? 1 : 2;
-        this.drawQuad(athlete.source, outlined, mode, false, [0, 0.675, 0.925, 1], false);
+        this.drawQuad(athlete.source, bounds, mode, athlete.gray, [0, 0, 0, 0], false);
+      } catch (error) {
+        this.report(error);
       }
-      const mode = athlete.layout === "stacked-alpha" ? 1 : 2;
-      this.drawQuad(athlete.source, bounds, mode, athlete.gray, [0, 0, 0, 0], false);
     }
   }
 
@@ -166,6 +200,7 @@ export class Compositor {
     const program = this.program;
     if (!gl || !program || !this.buffer) return;
     const texture = this.textureFor(source);
+    if (!texture) return;
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, texture);
     const uTex = gl.getUniformLocation(program, "uTex");
@@ -184,24 +219,70 @@ export class Compositor {
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
 
-  private textureFor(source: CanvasImageSource): WebGLTexture {
-    const gl = this.gl!;
-    const existing = this.textures.get(source);
-    if (existing) {
-      gl.bindTexture(gl.TEXTURE_2D, existing.texture);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source as TexImageSource);
-      return existing.texture;
+  /**
+   * WebView2 throws InvalidStateError from texImage2D on an HTMLVideoElement after the first
+   * camera frame. Copy the frame to a 2D canvas and upload that instead. A failed copy keeps
+   * the previous canvas so one bad frame does not drop the layer forever.
+   */
+  private frameForUpload(source: CanvasImageSource): CanvasImageSource | null {
+    if (!(source instanceof HTMLVideoElement)) return source;
+    if (source.readyState < 2 || source.videoWidth === 0 || source.videoHeight === 0) return null;
+    let slot = this.videoCopies.get(source);
+    if (!slot) {
+      slot = { canvas: document.createElement("canvas"), drawn: false };
+      this.videoCopies.set(source, slot);
     }
-    const texture = gl.createTexture();
-    if (!texture) throw new Error("Could not create a WebGL texture");
-    gl.bindTexture(gl.TEXTURE_2D, texture);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source as TexImageSource);
-    this.textures.set(source, { texture, source });
-    return texture;
+    const canvas = slot.canvas;
+    if (canvas.width !== source.videoWidth || canvas.height !== source.videoHeight) {
+      canvas.width = source.videoWidth;
+      canvas.height = source.videoHeight;
+      slot.drawn = false;
+    }
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return slot.drawn ? canvas : null;
+    try {
+      ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
+      slot.drawn = true;
+      return canvas;
+    } catch (error) {
+      this.report(error);
+      return slot.drawn ? canvas : null;
+    }
+  }
+
+  private textureFor(source: CanvasImageSource): WebGLTexture | null {
+    const gl = this.gl;
+    if (!gl || gl.isContextLost()) return null;
+    const upload = this.frameForUpload(source);
+    if (!upload) return null;
+    try {
+      const existing = this.textures.get(upload);
+      if (existing) {
+        gl.bindTexture(gl.TEXTURE_2D, existing.texture);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, upload as TexImageSource);
+        return existing.texture;
+      }
+      const texture = gl.createTexture();
+      if (!texture) {
+        this.report(new Error("Could not create a WebGL texture"));
+        return null;
+      }
+      gl.bindTexture(gl.TEXTURE_2D, texture);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, upload as TexImageSource);
+      this.textures.set(upload, { texture, source: upload });
+      return texture;
+    } catch (error) {
+      this.report(error);
+      return null;
+    }
+  }
+
+  private report(error: unknown): void {
+    this.onError?.(error);
   }
 
   private draw2d(background: BackgroundLayer | null, athletes: AthleteLayer[]): void {
@@ -212,19 +293,27 @@ export class Compositor {
     ctx.fillStyle = "#000";
     ctx.fillRect(0, 0, this.width, this.height);
     if (background && sourceReady(background.source)) {
-      const cover = fitRect(background.fit, background.width, background.height, this.width, this.height);
-      ctx.save();
-      if (background.mirror) {
-        ctx.translate(this.width, 0);
-        ctx.scale(-1, 1);
+      try {
+        const cover = fitRect(background.fit, background.width, background.height, this.width, this.height);
+        ctx.save();
+        if (background.mirror) {
+          ctx.translate(this.width, 0);
+          ctx.scale(-1, 1);
+        }
+        ctx.drawImage(background.source, cover.left, cover.top, cover.width, cover.height);
+        ctx.restore();
+      } catch (error) {
+        this.report(error);
       }
-      ctx.drawImage(background.source, cover.left, cover.top, cover.width, cover.height);
-      ctx.restore();
     }
     for (const athlete of athletes) {
       if (!sourceReady(athlete.source)) continue;
-      const bounds = layerBounds(athlete);
-      drawAthlete2d(ctx, athlete, bounds);
+      try {
+        const bounds = layerBounds(athlete);
+        drawAthlete2d(ctx, athlete, bounds);
+      } catch (error) {
+        this.report(error);
+      }
     }
   }
 }

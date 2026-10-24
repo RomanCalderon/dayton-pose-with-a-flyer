@@ -44,14 +44,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.ref_type == 'tag' && github.ref_name || 'v0.1.0-prototype' }}
-          releaseName: Pose with a Flyer ${{ github.ref_type == 'tag' && github.ref_name || 'v0.1.0-prototype' }}
+          tagName: ${{ github.ref_type == 'tag' && github.ref_name || 'v0.1.1-prototype' }}
+          releaseName: Pose with a Flyer ${{ github.ref_type == 'tag' && github.ref_name || 'v0.1.1-prototype' }}
           releaseBody: |
             Prototype of the Pose with a Flyer kiosk.
 
             The NSIS installer is the one to run. It is unsigned, so Windows SmartScreen will warn until you choose More info, then Run anyway. WebView2 is already part of Windows 11; the installer can also download the Evergreen bootstrapper.
 
-            The app opens windowed. Press S on the attract screen to simulate a QR scan. See the repository README for the uploader contract, keyboard shortcuts, and how to swap assets.
+            The app opens windowed. Press S on the attract screen to simulate a QR scan. Press N to skip the countdown. F2 shows the resolved config path, asset root, video readyState, and errors. See the repository README for install paths, the uploader contract, and how to swap assets.
           releaseDraft: false
           prerelease: true
           args: --bundles nsis,msi

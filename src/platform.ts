@@ -7,6 +7,8 @@ export interface RuntimePaths {
   tauri: boolean;
   configPath: string;
   assetRoot: string;
+  /** Absolute kiosk.log path in the desktop shell. Empty in the browser. */
+  logPath: string;
   config: AppConfig;
   cameras: CameraList;
 }
@@ -38,6 +40,7 @@ export async function loadRuntime(): Promise<RuntimePaths> {
       tauri: false,
       configPath: "/kiosk-config/kiosk.json",
       assetRoot: "/kiosk-assets",
+      logPath: "",
       config,
       cameras: {
         platform: "browser",
@@ -51,12 +54,14 @@ export async function loadRuntime(): Promise<RuntimePaths> {
     configText: string;
     configPath: string;
     assetRoot: string;
+    logPath: string;
   }>("load_config");
   const cameras = await invoke<CameraList>("list_cameras");
   return {
     tauri: true,
     configPath: loaded.configPath,
     assetRoot: loaded.assetRoot,
+    logPath: loaded.logPath,
     config: parseConfig(loaded.configText),
     cameras,
   };

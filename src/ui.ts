@@ -19,7 +19,9 @@ export interface ViewModel {
   debugOpen: boolean;
   cameraSummary: string;
   preferWebm: boolean;
-  pathsLabel: string;
+  configPath: string;
+  assetRoot: string;
+  logPath: string;
   hasPhoto: boolean;
   flashOpacity: number;
 }
@@ -77,7 +79,7 @@ export function renderChrome(view: ViewModel): string {
   const warning = view.showStillThere
     ? `<div class="still-there">STILL THERE?</div>`
     : "";
-  return `${body}${warning}${renderDebug(view)}`;
+  return `${body}${warning}`;
 }
 
 export function canvasMode(screen: Session["screen"]): "hidden" | "full" | "preview" {
@@ -357,9 +359,10 @@ function renderThanks(view: ViewModel): string {
   </section>`;
 }
 
-function renderDebug(view: ViewModel): string {
+export function renderDebug(view: ViewModel): string {
   if (!view.debugOpen) return "";
   const session = view.session;
+  const logPath = view.logPath || "browser console only";
   return `<aside class="debug">
     <strong>Pose with a Flyer · debug</strong>
     <div>screen ${escapeHtml(session.screen)} · mode ${escapeHtml(view.config.start.mode)} · roster ${escapeHtml(session.roster)}</div>
@@ -367,7 +370,10 @@ function renderDebug(view: ViewModel): string {
     <div>athletes ${escapeHtml(session.selectedIds.join(", ") || "(none)")} · webm ${view.preferWebm ? "prefer" : "fallback"}</div>
     <div>cameras ${escapeHtml(view.cameraSummary)}</div>
     <div>upload ${escapeHtml(view.uploadStatus || "(idle)")}</div>
-    <div>config ${escapeHtml(view.pathsLabel)}</div>
+    <div>config ${escapeHtml(view.configPath || "(unresolved)")}</div>
+    <div>assets ${escapeHtml(view.assetRoot || "(unresolved)")}</div>
+    <div>log ${escapeHtml(logPath)}</div>
+    <pre id="debug-live" class="debug-log"></pre>
     <div class="debug-keys">S scan/start · Enter primary · Esc reset · Backspace back · N skip countdown · arrows nudge · [ ] scale · Tab next athlete · F fullscreen · F2 hide</div>
     <div class="debug-row">
       <button data-action="simulate-scan">Simulate scan</button>

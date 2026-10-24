@@ -9,6 +9,7 @@
     "core:window:allow-is-fullscreen",
     "allow-load-config",
     "allow-list-cameras",
-    "allow-upload-photo"
+    "allow-upload-photo",
+    "allow-append-log"
   ]
 }

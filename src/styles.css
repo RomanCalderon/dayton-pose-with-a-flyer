@@ -742,12 +742,38 @@ button, video { font-family: inherit; }
   pointer-events: none;
 }
 
-.debug {
+#debug-host {
   position: fixed;
-  left: 16px;
-  bottom: 16px;
-  z-index: 20;
-  width: min(560px, calc(100vw - 32px));
+  left: 12px;
+  bottom: 12px;
+  z-index: 40;
+  width: min(640px, calc(100vw - 24px));
+  max-height: min(52vh, 460px);
+  overflow: auto;
+  pointer-events: auto;
+}
+
+#status-host {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  z-index: 40;
+  pointer-events: none;
+}
+
+.status-strip {
+  background: rgba(189, 22, 52, 0.94);
+  color: white;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-family: "Saira", sans-serif;
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.debug {
+  width: auto;
   background: rgba(6, 16, 32, 0.92);
   color: white;
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -762,6 +788,17 @@ button, video { font-family: inherit; }
 .debug strong { display: block; margin-bottom: 4px; font-size: 15px; }
 
 .debug-keys { margin-top: 6px; color: #c9d6e8; }
+
+.debug-log {
+  margin: 8px 0 0;
+  max-height: 160px;
+  overflow: auto;
+  white-space: pre-wrap;
+  font-family: ui-monospace, "Cascadia Mono", monospace;
+  font-size: 12px;
+  line-height: 1.35;
+  color: #f3d2d8;
+}
 
 .debug-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 
