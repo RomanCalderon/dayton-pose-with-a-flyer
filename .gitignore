@@ -6,3 +6,5 @@ src-tauri/gen/
 *.log
 .vite/
 uploads/
+__pycache__/
+*.pyc
