@@ -75,42 +75,17 @@ button, video { font-family: inherit; }
 
 .screen { position: absolute; inset: 0; }
 
-.bg, .bg-navy, .bg-diagonal, .bg-grid, .bg-grain, .bg-video {
+.bg, .bg-navy, .bg-photo, .bg-video {
   position: absolute;
   inset: 0;
 }
 
 .bg-navy { background: var(--navy); }
 
-.bg-diagonal {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent 30%),
-    linear-gradient(115deg, #1c82d4 0%, #156eb8 55%, #0f5ea3 100%);
-  clip-path: polygon(0 0, 42% 0, 58% 100%, 0 100%);
-}
-
-.bg-video {
+.bg-photo, .bg-video {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  opacity: 0.45;
-  mix-blend-mode: screen;
-}
-
-.bg-grid {
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
-  background-size: 92px 92px;
-  opacity: 0.45;
-  mix-blend-mode: overlay;
-}
-
-.bg-grain {
-  background-size: 420px 420px;
-  opacity: 0.35;
-  mix-blend-mode: overlay;
-  pointer-events: none;
 }
 
 .mega {
@@ -280,45 +255,6 @@ button, video { font-family: inherit; }
   color: rgba(255, 255, 255, 0.8);
   font-size: 28px;
   letter-spacing: 0.4px;
-}
-
-.sponsor {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  width: 1180px;
-  height: 210px;
-  background: white;
-  color: var(--navy);
-  clip-path: polygon(8% 0, 100% 0, 100% 100%, 0 100%);
-  z-index: 5;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  padding: 0 70px 10px 160px;
-}
-
-.sponsor-name {
-  font-family: "Libre Baskerville", Georgia, serif;
-  font-size: 52px;
-  font-weight: 700;
-  letter-spacing: -0.5px;
-  line-height: 1;
-}
-
-.sponsor-sub {
-  font-size: 20px;
-  font-weight: 600;
-  letter-spacing: 1.5px;
-  color: #3c4d63;
-}
-
-.sponsor-tag {
-  margin-top: 8px;
-  font-family: "Saira Extra Condensed", sans-serif;
-  font-weight: 700;
-  font-size: 28px;
-  letter-spacing: 1px;
 }
 
 .mark {

@@ -15,9 +15,10 @@ import {
 import { urlIsCanvasSafe } from "./media";
 import { athleteSourceKind, playbackFrameReady } from "./playback";
 import { chooseSides, createSession, lockWordsForCountdown, reduceSession } from "./session";
+import type { AppConfig, Athlete, RosterFile, Screen } from "./types";
 import { extractParticipantId, type ParticipantIdConfig } from "./participant";
 import { buildUploadForm, jpegFieldName, uploadEndpoint, uploadFields, uploadFilename } from "./upload";
-import { escapeHtml, headshotSlots, PHOTO_RECT, previewFit, STAGE_H, STAGE_W } from "./ui";
+import { backgroundObjectPosition, escapeHtml, headshotSlots, PHOTO_RECT, previewFit, renderChrome, STAGE_H, STAGE_W, type ViewModel } from "./ui";
 
 const base = parseConfig("{}");
 
@@ -386,5 +387,68 @@ describe("defaults", () => {
     expect(base.uploader.extraFields).toBe(false);
     expect(base.qr.participantId.from).toBe("auto");
     expect(extractParticipantId(base.debug.simulateScanUrl, base.qr.participantId)).toBe("1001");
+    expect(base.assets.background).toBe("branding/background.jpg");
+    expect(base.assets.attractVideo).toBe("");
+  });
+});
+
+function chrome(screen: Screen, assets: Partial<AppConfig["assets"]> = {}, backgroundUrl: string | null = "blob:http://localhost/bg"): string {
+  const roster: RosterFile = { version: 1, teams: { mens: [] as Athlete[], womens: [] as Athlete[] } };
+  const view: ViewModel = {
+    config: { ...base, assets: { ...base.assets, ...assets } },
+    session: { ...createSession("mens"), screen },
+    roster,
+    assetUrl: (relative) => `/kiosk-assets/${relative}`,
+    qrError: null,
+    scanNotice: null,
+    photoError: null,
+    showStillThere: false,
+    uploadStatus: "",
+    debugOpen: false,
+    cameraSummary: "",
+    preferWebm: false,
+    configPath: "",
+    assetRoot: "",
+    logPath: "",
+    hasPhoto: true,
+    flashOpacity: 0,
+    measuredClips: {},
+    backgroundUrl,
+    backgroundWidth: backgroundUrl ? 3840 : 0,
+    backgroundHeight: backgroundUrl ? 2320 : 0,
+  };
+  return renderChrome(view);
+}
+
+describe("background plate", () => {
+  it("cover-fits a taller plate with the Figma vertical shift", () => {
+    expect(backgroundObjectPosition(3840, 2320)).toBe("center 69.375%");
+    expect(backgroundObjectPosition(3840, 2160)).toBe("center center");
+    expect(backgroundObjectPosition(1920, 1080)).toBe("center center");
+    expect(backgroundObjectPosition(0, 0)).toBe("center center");
+  });
+
+  it("paints the plate on attract, pick, preview, and thank-you only", () => {
+    for (const screen of ["attract", "pick", "preview", "thanks"] as const) {
+      const html = chrome(screen);
+      expect(html, screen).toContain("bg-photo");
+      expect(html, screen).toContain("bg-navy");
+      expect(html, screen).not.toContain("sponsor");
+      expect(html, screen).not.toContain("bg-diagonal");
+      expect(html, screen).not.toContain("bg-video");
+    }
+    expect(chrome("attract")).toContain("object-position:center 69.375%");
+    expect(chrome("preview")).toContain("frame-overlay");
+    expect(chrome("preview")).toContain("frames/takeaway_v1.png");
+    for (const screen of ["countdown", "flash", "adjust"] as const) {
+      expect(chrome(screen), screen).not.toContain("bg-photo");
+    }
+    expect(chrome("attract", {}, null)).not.toContain("bg-photo");
+    expect(chrome("attract", {}, null)).toContain("bg-navy");
+    const withLoop = chrome("attract", { attractVideo: "attract/loop.mp4" });
+    expect(withLoop).toContain("bg-video");
+    expect(withLoop).toContain("/kiosk-assets/attract/loop.mp4");
+    expect(chrome("pick", { attractVideo: "attract/loop.mp4" })).not.toContain("bg-video");
+    expect(chrome("attract", { attractVideo: "   " })).not.toContain("bg-video");
   });
 });

@@ -92,6 +92,9 @@ export class KioskApp {
   private clips = new Map<string, LoadedClip>();
   private measuredClips = new Map<string, { width: number; height: number }>();
   private blobbedAssets = new Map<string, string>();
+  private backgroundUrl: string | null = null;
+  private backgroundWidth = 0;
+  private backgroundHeight = 0;
   private localAssets = new Map<string, Promise<string | null>>();
   private assetRefresh = 0;
   private qrError: string | null = null;
@@ -193,9 +196,39 @@ export class KioskApp {
     const [guest, frame] = await Promise.all([
       this.loadSafeImage("placeholders/guest.png"),
       this.loadSafeImage(this.config.assets.takeawayFrame),
+      this.loadBackground(),
     ]);
     this.guestImage = guest;
     this.frameImage = frame;
+  }
+
+  private async loadBackground(): Promise<void> {
+    const relative = this.config.assets.background.trim();
+    this.backgroundUrl = null;
+    this.backgroundWidth = 0;
+    this.backgroundHeight = 0;
+    if (!relative) {
+      this.logLine("background fallback #002554 (assets.background is empty)");
+      return;
+    }
+    const direct = assetUrl(this.paths, relative);
+    try {
+      const blob = await fetchAssetBlob(direct, 8000);
+      const url = URL.createObjectURL(blob);
+      const image = await loadImage(url);
+      if (!image || image.naturalWidth <= 0 || image.naturalHeight <= 0) {
+        URL.revokeObjectURL(url);
+        this.logLine(`background fallback #002554 ${relative}`);
+        return;
+      }
+      this.backgroundUrl = url;
+      this.backgroundWidth = image.naturalWidth;
+      this.backgroundHeight = image.naturalHeight;
+      this.logLine(`background ${relative} ${image.naturalWidth}x${image.naturalHeight}`);
+    } catch (error) {
+      this.logLine(`background fallback #002554 ${relative}`);
+      this.logError(`background ${relative}`, error);
+    }
   }
 
   private applyDebugQuery(): void {
@@ -343,6 +376,9 @@ export class KioskApp {
       hasPhoto: Boolean(this.photoVideo || this.frozenCamera),
       flashOpacity: this.flashOpacity,
       measuredClips: Object.fromEntries(this.measuredClips),
+      backgroundUrl: this.backgroundUrl,
+      backgroundWidth: this.backgroundWidth,
+      backgroundHeight: this.backgroundHeight,
     };
   }
 

@@ -68,6 +68,9 @@ export interface AppConfig {
     rosterFile: string;
     headshotsDir: string;
     athleteVideosDir: string;
+    /** Full-screen plate for attract, pick, preview, and thank-you. */
+    background: string;
+    /** Optional attract-only loop above the plate. Empty plays nothing. */
     attractVideo: string;
     takeawayFrame: string;
     fireVideo: string;

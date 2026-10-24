@@ -26,6 +26,10 @@ export interface ViewModel {
   hasPhoto: boolean;
   flashOpacity: number;
   measuredClips: Record<string, ClipSize>;
+  /** Blob URL of the static plate. Null falls back to solid navy. */
+  backgroundUrl: string | null;
+  backgroundWidth: number;
+  backgroundHeight: number;
 }
 
 export function escapeHtml(value: string): string {
@@ -90,28 +94,39 @@ export function canvasMode(screen: Session["screen"]): "hidden" | "full" | "prev
   return "hidden";
 }
 
+/**
+ * Cover-fit position for the plate. A 16:9 file fills the stage. A taller file
+ * (the Figma fill is 3840×2320 in this 3840×2160 frame) is centered, then shifted
+ * up 31px so the visible window matches that crop.
+ */
+export function backgroundObjectPosition(
+  imageWidth: number,
+  imageHeight: number,
+  stageW = STAGE_W,
+  stageH = STAGE_H,
+): string {
+  if (imageWidth <= 0 || imageHeight <= 0) return "center center";
+  const scale = Math.max(stageW / imageWidth, stageH / imageHeight);
+  const overflow = imageHeight * scale - stageH;
+  if (overflow <= 0.5) return "center center";
+  const offset = -overflow / 2 - 31;
+  const percent = Math.round((offset / -overflow) * 100 * 1000) / 1000;
+  return `center ${percent}%`;
+}
+
 function background(view: ViewModel, withVideo: boolean): string {
-  const grain = view.assetUrl("textures/grain.png");
-  const video = withVideo
-    ? `<video class="bg-video" src="${escapeHtml(view.assetUrl(view.config.assets.attractVideo))}" autoplay muted loop playsinline></video>`
+  const photo = view.backgroundUrl
+    ? `<img class="bg-photo" alt="" src="${escapeHtml(view.backgroundUrl)}" style="object-position:${escapeHtml(backgroundObjectPosition(view.backgroundWidth, view.backgroundHeight))}" />`
+    : "";
+  const attract = view.config.assets.attractVideo.trim();
+  const video = withVideo && attract
+    ? `<video class="bg-video" src="${escapeHtml(view.assetUrl(attract))}" autoplay muted loop playsinline></video>`
     : "";
   return `<div class="bg" aria-hidden="true">
     <div class="bg-navy"></div>
-    <div class="bg-diagonal"></div>
+    ${photo}
     ${video}
-    <div class="bg-grid"></div>
-    <div class="bg-grain" style="background-image:url('${escapeHtml(grain)}')"></div>
   </div>`;
-}
-
-function sponsor(): string {
-  return `<aside class="sponsor">
-    <div class="sponsor-copy">
-      <div class="sponsor-name">Wright-Patt</div>
-      <div class="sponsor-sub">CREDIT UNION, INC.</div>
-      <div class="sponsor-tag">BANKING DONE WRIGHT</div>
-    </div>
-  </aside>`;
 }
 
 function mark(tone: "red" | "white" | "navy"): string {
@@ -144,7 +159,6 @@ function renderAttract(view: ViewModel): string {
     <h1 class="mega"><span>POSE WITH</span><span>A FLYER</span></h1>
     ${panel}
     ${hint}
-    ${sponsor()}
   </section>`;
 }
 
@@ -201,7 +215,6 @@ function renderPick(view: ViewModel): string {
       <button class="pill pill-go ${ready ? "" : "is-disabled"}" ${ready ? 'data-action="lets-go"' : "disabled"}>LET'S GO!</button>
     </div>
     <button class="corner-btn" data-action="go-back">GO BACK</button>
-    ${sponsor()}
   </section>`;
 }
 
@@ -339,7 +352,6 @@ function renderPreview(view: ViewModel): string {
       <button class="pill pill-send" data-action="send">SEND!</button>
     </div>
     <button class="corner-btn" data-action="start-over">START OVER</button>
-    ${sponsor()}
   </section>`;
 }
 
@@ -357,8 +369,7 @@ function renderThanks(view: ViewModel): string {
       <h1>THANK<br>YOU</h1>
       ${mark("white")}
     </div>
-    ${emailed}
-    ${sponsor()}
+      ${emailed}
   </section>`;
 }
 

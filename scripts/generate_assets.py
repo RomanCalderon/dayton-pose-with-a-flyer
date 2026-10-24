@@ -653,6 +653,19 @@ def write_icon_source(path: Path) -> None:
     _ = png_chunk  # kept so a future raw writer can reuse it
 
 
+def background_plate(path: Path) -> None:
+    """Plain navy/blue split. No logos, type, or sponsor strip."""
+    width, height = 1920, 1080
+    image = Image.new("RGB", (width, height), (0, 37, 84))
+    draw = ImageDraw.Draw(image)
+    draw.polygon(
+        [(0, 0), (int(width * 0.46), 0), (int(width * 0.62), height), (0, height)],
+        fill=(21, 110, 184),
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    image.save(path, format="JPEG", quality=85, optimize=True)
+
+
 def main() -> None:
     (ASSETS / "headshots").mkdir(parents=True, exist_ok=True)
     (ASSETS / "athletes").mkdir(parents=True, exist_ok=True)
@@ -667,6 +680,7 @@ def main() -> None:
     noise_png(ASSETS / "textures" / "grain.png")
     takeaway_frame(ASSETS / "frames" / "takeaway_v1.png")
     write_qr(ASSETS / "branding" / "register-qr.png")
+    background_plate(ASSETS / "branding" / "background.jpg")
     write_icon_source(ROOT / "src-tauri" / "icons" / "source.png")
     print("clips")
     for pose, left, right in zip(POSES, LEFT_CLIPS, RIGHT_CLIPS):

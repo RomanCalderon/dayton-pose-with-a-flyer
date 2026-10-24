@@ -1,5 +1,3 @@
-import "@fontsource/libre-baskerville/400.css";
-import "@fontsource/libre-baskerville/700.css";
 import "@fontsource/saira-extra-condensed/600.css";
 import "@fontsource/saira-extra-condensed/700.css";
 import "@fontsource/saira/500.css";

@@ -97,7 +97,8 @@ Everything the screens read lives under `assets/` (or whatever `assets.root` poi
 | `headshots/<id>.png` | Circular portraits |
 | `athletes/<id>_left.mp4` and `_right.mp4` | Stacked-alpha H.264. Color on top, alpha as brightness on the bottom, same width |
 | `athletes/<id>_left.webm` | Optional VP9 with alpha. Used when the mp4 fails, or when the debug overlay prefers WebM |
-| `attract/loop.mp4` | Silent loop behind the attract and pick screens |
+| `branding/background.jpg` | Static plate behind attract, pick, preview, and thank-you. Cover-fit. A 16:9 file fills the stage. A taller file is centered and shifted up 31px, matching the Figma crop of the 3840×2320 fill. Countdown and tap-to-adjust keep the live camera instead |
+| `attract/loop.mp4` | Optional. `assets.attractVideo` defaults to empty, which plays nothing. A path plays only on the attract screen, above the plate |
 | `frames/takeaway_v1.png` | Transparent PNG composited over the 2560×1440 JPEG |
 | `fx/fire.mp4` | Hidden preview layer |
 | `placeholders/guest.png` | Stand-in when the photo camera is missing |
@@ -106,13 +107,15 @@ Everything the screens read lives under `assets/` (or whatever `assets.root` poi
 
 Still images the compositor or the JPEG touches (the takeaway frame, posters, the guest stand-in, headshots) are fetched into memory before upload. `http://asset.localhost` is a different origin from the Tauri page, and an `<img>` pointed at it taints WebGL even when the file displays on screen.
 
-Regenerate the placeholders with `python3 scripts/generate_assets.py` (Pillow and ffmpeg). The script draws original silhouettes. It does not copy Dayton, NCAA, or sponsor artwork.
+Regenerate the placeholders with `python3 scripts/generate_assets.py` (Pillow and ffmpeg). The script draws original silhouettes and a plain navy/blue `branding/background.jpg`. It does not copy Dayton, NCAA, or sponsor artwork.
+
+The background file in this repo is that placeholder. Do not commit the real Dayton/WPCU collage. On the arena PC, put the real plate at `C:\DaytonKiosk\assets\branding\background.jpg` (the machine asset root wins over the bundled copy). If the file is missing or fails to load, the screen falls back to solid Dayton navy `#002554` and the miss is written to the log.
 
 ### Fonts and marks
 
-Headlines use [Saira Extra Condensed](https://fonts.google.com/specimen/Saira+Extra+Condensed) and body text uses Saira. The sponsor line uses Libre Baskerville. All three are SIL Open Font License; the license texts are in `licenses/`. Vitesse is not included.
+Headlines use [Saira Extra Condensed](https://fonts.google.com/specimen/Saira+Extra+Condensed) and body text uses Saira. Both are SIL Open Font License; the license texts are in `licenses/`. Vitesse is not included. Libre Baskerville remains installed for the old chrome sponsor line and is not drawn.
 
-The red “D”, the sponsor words, and the frame artwork are original placeholders. Drop licensed logo files in when you have them, and point the frame at the real `takeaway_v1.png`. Do not commit trademarked logos or athlete photographs to this repository while it is public.
+The red “D” and the frame artwork are original placeholders. The Wright-Patt strip is not drawn in the chrome; it is part of the real background plate, which stays off this public repo. Drop licensed logo files in when you have them, and point the frame at the real `takeaway_v1.png`. Do not commit trademarked logos or athlete photographs to this repository while it is public.
 
 ## Uploader contract
 
@@ -211,11 +214,11 @@ The compositor draws at 2560×1440. DOM chrome is laid out on a 3840×2160 stage
 
 On the countdown, an athlete stays hidden until that clip fires `playing` and a new frame is presented (`requestVideoFrameCallback`, or `currentTime > 0` when the callback is missing). The paused first frame, the poster, and the PNG still are not drawn during the walk-in, so a clip that starts inside the frame does not sit frozen on screen. Once a frame has been presented, the clip stays up through the last-frame hold. Adjust, the flash, and preview still show that held pose, and a clip that never started falls back to its still or poster there so the photo is not missing an athlete.
 
-The preview screen scales that full 2560×1440 buffer into the photo well above the sponsor bar. The takeaway frame is drawn over the same rectangle on screen and in the JPEG, so the preview matches the file that is uploaded. The dock, the side type, and the sponsor sit outside the well.
+The preview screen scales that full 2560×1440 buffer into the photo well. The takeaway frame, including its tagline bar, is drawn over the same rectangle on screen and in the JPEG, so the preview matches the file that is uploaded. The dock and the side type sit outside the well. The screen background behind them is the static plate.
 
 ## Known gaps
 
-- Placeholder roster, clips, headshots, frame, and attract loop. No licensed Dayton or sponsor art, and no Vitesse.
+- Placeholder roster, clips, headshots, frame, and background plate. No licensed Dayton or sponsor art, and no Vitesse. The attract loop is off unless `assets.attractVideo` is set.
 - `list_cameras` serial and port lookup is Windows-only (Media Foundation + CfgMgr32). Other platforms return an empty list and the web layer falls back to the first webcam.
 - Friendly-name renaming of the two Brios is still a manual setup step. The app cannot hash a USB serial into a WebView `deviceId`.
 - The kiosk posts to the uploader and does not retry. Queueing and delivery live in that service.

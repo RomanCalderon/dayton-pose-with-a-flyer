@@ -55,7 +55,10 @@
     "rosterFile": "roster.json",
     "headshotsDir": "headshots",
     "athleteVideosDir": "athletes",
-    "attractVideo": "attract/loop.mp4",
+    // Static plate. The real collage stays out of this public repo; drop it on the arena PC.
+    "background": "branding/background.jpg",
+    // Empty plays nothing. A path plays only on the attract screen, above the plate.
+    "attractVideo": "",
     "takeawayFrame": "frames/takeaway_v1.png",
     "fireVideo": "fx/fire.mp4"
   },
