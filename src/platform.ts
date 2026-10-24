@@ -26,6 +26,8 @@ export interface AssetHit {
   path: string;
   root: string;
   found: boolean;
+  /** Set when the shell command rejected. A missing file leaves this empty. */
+  error?: string;
 }
 
 export function isTauri(): boolean {
@@ -64,6 +66,28 @@ export function assetServedMessage(relative: string, root: string): string {
 
 export function assetMissingMessage(): string {
   return "missing from the custom root and the bundled assets folder";
+}
+
+/** Text from a rejected Tauri `invoke`. Strings, Errors, and `{ message }` all occur. */
+export function invokeErrorText(error: unknown): string {
+  if (typeof error === "string") return error.trim() || "unknown error";
+  if (error instanceof Error) return error.message.trim() || error.name;
+  if (error && typeof error === "object" && "message" in error) {
+    const message = (error as { message: unknown }).message;
+    if (typeof message === "string" && message.trim()) return message.trim();
+  }
+  return String(error);
+}
+
+/** An invoke rejection is not a missing file. Callers show `error` instead of the missing-asset line. */
+export function deniedAssetHit(relative: string, error: unknown): AssetHit {
+  return {
+    relative: normalizeAssetKey(relative),
+    path: "",
+    root: "",
+    found: false,
+    error: invokeErrorText(error),
+  };
 }
 
 /** One working URL. In the shell, Rust stats the custom root and then the install folder. */

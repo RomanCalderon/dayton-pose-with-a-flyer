@@ -8,6 +8,7 @@
     "core:window:allow-set-fullscreen",
     "core:window:allow-is-fullscreen",
     "allow-load-config",
+    "allow-resolve-asset",
     "allow-list-cameras",
     "allow-upload-photo",
     "allow-append-log"

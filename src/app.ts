@@ -37,6 +37,7 @@ import {
   assetHitUrl,
   assetMissingMessage,
   assetServedMessage,
+  deniedAssetHit,
   isTauri,
   loadRuntime,
   normalizeAssetKey,
@@ -136,6 +137,7 @@ export class KioskApp {
   private assetHits = new Map<string, AssetHit>();
   private assetPending = new Map<string, Promise<AssetHit>>();
   private missingAssets: string[] = [];
+  private assetError = "";
   private backgroundUrl: string | null = null;
   private backgroundWidth = 0;
   private backgroundHeight = 0;
@@ -349,7 +351,9 @@ export class KioskApp {
 
   private async loadRoster(): Promise<void> {
     const file = this.config.assets.rosterFile;
-    const url = await this.resolvedUrl(file);
+    const hit = await this.resolveHit(file);
+    if (hit.error) throw new Error(hit.error);
+    const url = hit.found ? assetHitUrl(this.paths.tauri, hit) : "";
     if (!url) throw new Error(`Roster not found (${file})`);
     const response = await fetch(url);
     if (!response.ok) {
@@ -549,7 +553,9 @@ export class KioskApp {
   private renderStatusStrip(): void {
     const missing = this.missingAssets;
     let text = "";
-    if (missing.length > 0) {
+    if (this.assetError) {
+      text = this.assetError;
+    } else if (missing.length > 0) {
       const extra = missing.length > 1 ? ` (+${missing.length - 1} more)` : "";
       text = `Missing asset ${missing[missing.length - 1]}${extra}`;
     } else {
@@ -2102,13 +2108,13 @@ export class KioskApp {
     const key = normalizeAssetKey(relative);
     const cached = this.assetHits.get(key);
     if (cached) {
-      if (required && !cached.found) this.noteMissingAsset(key);
+      if (required && !cached.found && !cached.error) this.noteMissingAsset(key);
       return Promise.resolve(cached);
     }
     const pending = this.assetPending.get(key);
     if (pending) {
       return pending.then((hit) => {
-        if (required && !hit.found) this.noteMissingAsset(key);
+        if (required && !hit.found && !hit.error) this.noteMissingAsset(key);
         return hit;
       });
     }
@@ -2122,14 +2128,15 @@ export class KioskApp {
     try {
       hit = await resolveAsset(this.paths, key);
     } catch (error) {
-      this.logError(`asset ${key}`, error);
-      hit = { relative: key, path: "", root: "", found: false };
+      hit = deniedAssetHit(key, error);
+      this.assetError = hit.error ?? "unknown error";
+      this.logError(`asset ${key}`, this.assetError);
     }
     this.assetPending.delete(key);
     this.assetHits.set(key, hit);
     if (hit.found) {
       if (this.paths.tauri) this.logLine(assetServedMessage(key, hit.root));
-    } else if (required) {
+    } else if (required && !hit.error) {
       this.noteMissingAsset(key);
     }
     return hit;
