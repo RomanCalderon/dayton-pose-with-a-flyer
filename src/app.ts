@@ -421,9 +421,11 @@ export class KioskApp {
     const hold = Number(params.get("holdMs"));
     const outMs = Number(params.get("outMs"));
     const inMs = Number(params.get("inMs"));
+    const offsetX = Number(params.get("offsetX"));
     if (params.has("holdMs") && Number.isFinite(hold) && hold >= 0) rotation.holdMs = hold;
     if (params.has("outMs") && Number.isFinite(outMs) && outMs >= 0) rotation.outMs = outMs;
     if (params.has("inMs") && Number.isFinite(inMs) && inMs >= 0) rotation.inMs = inMs;
+    if (params.has("offsetX") && Number.isFinite(offsetX)) rotation.offsetX = offsetX;
     if (params.get("keyWhite") === "1") rotation.keyWhite = true;
     if (params.get("keyWhite") === "0") rotation.keyWhite = false;
     this.config = { ...this.config, attract: { rotation } };
@@ -1971,7 +1973,7 @@ export class KioskApp {
     const phase = this.attractPhase === "out" ? "out" : "in";
     const rotation = this.config.attract.rotation;
     slide.style.transition = animate ? attractSlideTransition(phase, rotation.outMs, rotation.inMs) : "none";
-    slide.style.transform = attractSlideTransform(phase);
+    slide.style.transform = attractSlideTransform(phase, rotation.offsetX);
     slide.dataset.phase = this.attractPhase;
   }
 

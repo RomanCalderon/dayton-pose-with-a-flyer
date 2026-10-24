@@ -24,10 +24,12 @@ interface StillSource {
   headshot?: string;
 }
 
-export function attractSlideTransform(phase: "in" | "out"): string {
+/** Resting pose is centered on `PLAYER_CENTER_X` plus `offsetX`. The exit stays fully off the left. */
+export function attractSlideTransform(phase: "in" | "out", offsetX = 0): string {
+  const shift = Number.isFinite(offsetX) ? offsetX : 0;
   switch (phase) {
     case "in":
-      return "translateX(-50%)";
+      return `translateX(calc(-50% + ${shift}px))`;
     case "out":
       return "translateX(calc(-100% - 625px))";
     default: {

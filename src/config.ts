@@ -93,6 +93,7 @@ export const DEFAULT_CONFIG: AppConfig = {
       holdMs: 6000,
       outMs: 700,
       inMs: 900,
+      offsetX: 100,
       keyWhite: false,
     },
   },

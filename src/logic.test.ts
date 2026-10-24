@@ -408,6 +408,7 @@ describe("defaults", () => {
     expect(base.assets.attractVideo).toBe("");
     expect(base.attract.rotation.keyWhite).toBe(false);
     expect(base.attract.rotation.holdMs).toBe(6000);
+    expect(base.attract.rotation.offsetX).toBe(100);
   });
 });
 

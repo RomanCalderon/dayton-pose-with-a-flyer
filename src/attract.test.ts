@@ -57,9 +57,10 @@ describe("attract stills", () => {
 
 describe("attract motion and keying", () => {
   it("slides with translateX only", () => {
-    expect(attractSlideTransform("in")).toBe("translateX(-50%)");
-    expect(attractSlideTransform("out")).toContain("translateX");
-    expect(attractSlideTransform("out")).not.toContain("translateY");
+    expect(attractSlideTransform("in", 0)).toBe("translateX(calc(-50% + 0px))");
+    expect(attractSlideTransform("in", 100)).toBe("translateX(calc(-50% + 100px))");
+    expect(attractSlideTransform("out", 100)).toBe("translateX(calc(-100% - 625px))");
+    expect(attractSlideTransform("out", 100)).not.toContain("translateY");
   });
 
   it("leaves an already-transparent still unchanged and keys only border white", () => {
@@ -95,6 +96,7 @@ describe("attract motion and keying", () => {
       holdMs: 6000,
       outMs: 700,
       inMs: 900,
+      offsetX: 100,
       keyWhite: false,
     });
     expect(VITESSE_FONT_FILES).toEqual([

@@ -110,6 +110,8 @@ export interface AppConfig {
       holdMs: number;
       outMs: number;
       inMs: number;
+      /** Stage pixels added to the resting center. Slide-off stays fully left of the stage. */
+      offsetX: number;
       /** When true, opaque stills lose border-connected white. Transparent PNGs are left alone. */
       keyWhite: boolean;
     };
