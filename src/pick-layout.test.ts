@@ -6,7 +6,11 @@ import {
   athleteArcName,
   estimateArcAdvance,
   fitArcFont,
+  HEADSHOT_FRAME,
+  headshotCrop,
+  headshotShiftY,
   layoutPickGrid,
+  nameArcPath,
   pickColumns,
   pickPitch,
   PICK_OBSTACLES,
@@ -117,6 +121,49 @@ describe("pick grid", () => {
         }
       }
     }
+  });
+});
+
+describe("headshot crop", () => {
+  const headshot = parseConfig("{}").pick.headshot;
+
+  it("fills missing headshot keys from the defaults", () => {
+    expect(headshot).toEqual({ zoom: 1.18, offsetX: 0, offsetY: 0 });
+    expect(parseConfig("{}").pick.nameInset).toBe(12);
+    const partial = parseConfig('{ "pick": { "headshot": { "zoom": 1.3 } } }');
+    expect(partial.pick.headshot).toEqual({ zoom: 1.3, offsetX: 0, offsetY: 0 });
+    expect(partial.pick.nameInset).toBe(12);
+  });
+
+  it("top-anchors a 564×2000 still on the head and shoulders", () => {
+    const crop = headshotCrop(564, 2000, headshot);
+    expect(crop.width).toBeGreaterThanOrEqual(HEADSHOT_FRAME.w);
+    expect(crop.x).toBeCloseTo((HEADSHOT_FRAME.w - crop.width) / 2, 3);
+    expect(crop.y).toBe(0);
+    expect(crop.visibleFraction).toBeGreaterThan(0.28);
+    expect(crop.visibleFraction).toBeLessThan(0.35);
+  });
+
+  it("treats a small offsetY as a fraction and a larger one as pixels", () => {
+    const fraction = headshotCrop(564, 2000, { ...headshot, offsetY: 0.02, offsetX: 4 });
+    expect(fraction.y).toBeCloseTo(-0.02 * fraction.height, 3);
+    expect(fraction.x).toBeCloseTo((HEADSHOT_FRAME.w - fraction.width) / 2 + 4, 3);
+    const pixels = headshotCrop(564, 2000, { ...headshot, offsetY: 12 });
+    expect(pixels.y).toBe(-12);
+    expect(headshotShiftY(0)).toBe("0px");
+    expect(headshotShiftY(0.02)).toBe("-2%");
+    expect(headshotShiftY(12)).toBe("-12px");
+  });
+});
+
+describe("name arc inset", () => {
+  it("drops the arc about 12px from the Figma rim", () => {
+    const original = nameArcPath(0);
+    const inset = nameArcPath(12);
+    expect(original.top).toBeCloseTo(19.401, 2);
+    expect(original.radius).toBeCloseTo(118.524, 3);
+    expect(inset.top - original.top).toBeCloseTo(12, 3);
+    expect(inset.radius).toBeCloseTo(106.524, 3);
   });
 });
 

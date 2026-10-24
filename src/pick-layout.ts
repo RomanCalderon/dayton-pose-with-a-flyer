@@ -1,4 +1,4 @@
-import type { PickGridConfig } from "./types";
+import type { PickGridConfig, PickHeadshotConfig } from "./types";
 
 export interface PickSlot {
   index: number;
@@ -25,6 +25,58 @@ export const PICK_OBSTACLES = {
 } as const;
 
 const TOP_ROWS = 2;
+
+/** Figma photo window inside the 275.145 button. */
+export const HEADSHOT_FRAME = { x: 48.68, y: 39.79, w: 177.468, h: 236.625 };
+
+/** Figma name arc before the extra inset. Centre (137.952, 137.925), radius 118.524. */
+export const NAME_ARC = { cx: 137.952, cy: 137.925, radius: 118.524 };
+
+export function headshotOffsetY(offsetY: number, imageHeight: number): number {
+  if (Math.abs(offsetY) <= 1) return offsetY * imageHeight;
+  return offsetY;
+}
+
+/**
+ * Place a still in the photo window. Width is the cover-width times zoom.
+ * The image is centered horizontally and anchored to the top, then nudged.
+ */
+export function headshotCrop(
+  imageWidth: number,
+  imageHeight: number,
+  headshot: PickHeadshotConfig,
+  frameW = HEADSHOT_FRAME.w,
+  frameH = HEADSHOT_FRAME.h,
+): { x: number; y: number; width: number; height: number; visibleFraction: number } {
+  const zoom = headshot.zoom > 0 ? headshot.zoom : 1;
+  const scale = (frameW / imageWidth) * zoom;
+  const width = imageWidth * scale;
+  const height = imageHeight * scale;
+  const shift = headshotOffsetY(headshot.offsetY, height);
+  return {
+    x: (frameW - width) / 2 + headshot.offsetX,
+    y: shift === 0 ? 0 : -shift,
+    width,
+    height,
+    visibleFraction: frameH / height,
+  };
+}
+
+/** CSS translateY for the same offset. Percentages are of the image itself. */
+export function headshotShiftY(offsetY: number): string {
+  if (offsetY === 0) return "0px";
+  if (Math.abs(offsetY) <= 1) return `${Math.round(-offsetY * 1000) / 10}%`;
+  return `${-offsetY}px`;
+}
+
+export function nameArcPath(inset: number): { d: string; radius: number; top: number } {
+  const radius = NAME_ARC.radius - inset;
+  const top = NAME_ARC.cy - radius;
+  const bottom = NAME_ARC.cy + radius;
+  const n = (value: number) => String(Math.round(value * 1000) / 1000);
+  const d = `M${n(NAME_ARC.cx)} ${n(bottom)} A${n(radius)} ${n(radius)} 0 0 1 ${n(NAME_ARC.cx)} ${n(top)} A${n(radius)} ${n(radius)} 0 0 1 ${n(NAME_ARC.cx)} ${n(bottom)}`;
+  return { d, radius, top };
+}
 
 export const ARC_FONT = 24.275;
 export const ARC_SPACING = 1.942;

@@ -44,14 +44,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.ref_type == 'tag' && github.ref_name || 'v0.1.10-prototype' }}
-          releaseName: Pose with a Flyer ${{ github.ref_type == 'tag' && github.ref_name || 'v0.1.10-prototype' }}
+          tagName: ${{ github.ref_type == 'tag' && github.ref_name || 'v0.1.11-prototype' }}
+          releaseName: Pose with a Flyer ${{ github.ref_type == 'tag' && github.ref_name || 'v0.1.11-prototype' }}
           releaseBody: |
             Prototype of the Pose with a Flyer kiosk.
 
             The NSIS installer is the one to run. It is unsigned, so Windows SmartScreen will warn until you choose More info, then Run anyway. WebView2 is already part of Windows 11; the installer can also download the Evergreen bootstrapper.
 
-            A new version clears the WebView2 profile before the window opens, so an older cached screen cannot stay on `http://tauri.localhost`. Asset lookup uses the `resolve_asset` command, which is allowed in the app capability. The attract screen uses the bundled Vitesse Bold title, a rotating full-body still, and the register card. The pick screen uses the same title face, Vitesse Sans on the buttons, and a roster-sized player grid (7 across through 19, up to 11 across and 27 players). The stage measures itself again after load and on resize. F2 shows the running version, the resolved config path, the asset root, video readyState, and errors. See the repository README for install paths, the uploader contract, and how to swap assets.
+            A new version clears the WebView2 profile before the window opens, so an older cached screen cannot stay on `http://tauri.localhost`. Asset lookup uses the `resolve_asset` command, which is allowed in the app capability. Player buttons crop tall stills from the top (`pick.headshot`) and the name arc sits `pick.nameInset` pixels inside the rim. The attract screen uses the bundled Vitesse Bold title, a rotating full-body still, and the register card. The pick screen uses the same title face, Vitesse Sans on the buttons, and a roster-sized player grid (7 across through 19, up to 11 across and 27 players). The stage measures itself again after load and on resize. F2 shows the running version, the resolved config path, the asset root, video readyState, and errors. See the repository README for install paths, the uploader contract, and how to swap assets.
           releaseDraft: false
           prerelease: true
           args: --bundles nsis,msi
@@ -79,5 +79,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          $tag = if ("${{ github.ref_type }}" -eq "tag") { "${{ github.ref_name }}" } else { "v0.1.10-prototype" }
+          $tag = if ("${{ github.ref_type }}" -eq "tag") { "${{ github.ref_name }}" } else { "v0.1.11-prototype" }
           gh release upload $tag $env:PORTABLE_ZIP --clobber

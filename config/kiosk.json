@@ -132,7 +132,17 @@
       "maxColumns": 11,
       "row3Max": 5,
       "maxPlayers": 27
-    }
+    },
+    // Tall stills are width-covered, then zoomed, and anchored to the top.
+    // zoom 1.18 shows about the top 32% of a 564×2000 still (head and shoulders).
+    // offsetY from -1 to 1 is a fraction of the image height; any other value is pixels.
+    // Positive offsetY moves the crop down. nameInset pulls the arc down from the rim.
+    "headshot": {
+      "zoom": 1.18,
+      "offsetX": 0,
+      "offsetY": 0
+    },
+    "nameInset": 12
   },
   "attract": {
     "rotation": {

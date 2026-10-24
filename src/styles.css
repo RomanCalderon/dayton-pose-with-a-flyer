@@ -424,10 +424,13 @@ button, video { font-family: inherit; }
 }
 
 .headshot img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: 50% 50%;
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: calc(100% * var(--hs-zoom, 1.18));
+  height: auto;
+  max-width: none;
+  transform: translate(calc(-50% + var(--hs-x, 0px)), var(--hs-y, 0px));
 }
 
 .hs-name {

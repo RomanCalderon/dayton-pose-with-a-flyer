@@ -4,11 +4,13 @@ import {
   athleteArcName,
   estimateArcAdvance,
   fitArcFont,
+  headshotShiftY,
   layoutPickGrid,
+  nameArcPath,
   showJersey,
 } from "./pick-layout";
 import { lockWordsForCountdown } from "./session";
-import type { AppConfig, Athlete, PickGridConfig, RosterFile, Session } from "./types";
+import type { AppConfig, Athlete, PickGridConfig, PickHeadshotConfig, RosterFile, Session } from "./types";
 
 export const STAGE_W = 3840;
 export const STAGE_H = 2160;
@@ -254,7 +256,15 @@ function renderPick(view: ViewModel): string {
     .map((slot) => {
       const athlete = athletes[slot.index];
       if (!athlete) return "";
-      return headshotButton(view, athlete, slot, view.session.selectedIds.includes(athlete.id), grid.button);
+      return headshotButton(
+        view,
+        athlete,
+        slot,
+        view.session.selectedIds.includes(athlete.id),
+        grid.button,
+        view.config.pick.headshot,
+        view.config.pick.nameInset,
+      );
     })
     .join("");
   const count = view.config.roster.maxSelections;
@@ -293,23 +303,27 @@ function headshotButton(
   slot: { x: number; y: number; index: number },
   selected: boolean,
   size: number,
+  headshot: PickHeadshotConfig,
+  nameInset: number,
 ): string {
   const name = athleteArcName(athlete.firstName, athlete.lastName);
   const badge = showJersey(athlete.jersey) ? `<span class="jersey">${escapeHtml(String(athlete.jersey))}</span>` : "";
+  const photoStyle = `--hs-zoom:${headshot.zoom};--hs-x:${headshot.offsetX}px;--hs-y:${headshotShiftY(headshot.offsetY)}`;
   return `<button class="headshot${selected ? " is-selected" : ""}" type="button" style="left:${slot.x}px;top:${slot.y}px;width:${size}px;height:${size}px" data-action="toggle-athlete" data-id="${escapeHtml(athlete.id)}" aria-pressed="${selected}">
-    <span class="headshot-photo"><img alt="" src="${escapeHtml(view.assetUrl(athlete.headshot))}" /></span>
-    ${nameArc(name, slot.index)}
+    <span class="headshot-photo" style="${photoStyle}"><img alt="" src="${escapeHtml(view.assetUrl(athlete.headshot))}" /></span>
+    ${nameArc(name, slot.index, nameInset)}
     ${badge}
   </button>`;
 }
 
-function nameArc(name: string, index: number): string {
+function nameArc(name: string, index: number, inset: number): string {
   if (!name) return "";
   const fit = fitArcFont(estimateArcAdvance(name));
   const id = `hs-arc-${index}`;
+  const arc = nameArcPath(inset);
   const length = fit.textLength === null ? "" : ` textLength="${fit.textLength}" lengthAdjust="spacingAndGlyphs"`;
   return `<svg class="hs-name" viewBox="0 0 275.145 275.145" width="275.145" height="275.145" aria-hidden="true">
-    <path id="${id}" fill="none" d="M137.952 256.449 A118.524 118.524 0 0 1 137.952 19.401 A118.524 118.524 0 0 1 137.952 256.449"/>
+    <path id="${id}" fill="none" d="${arc.d}"/>
     <text font-family="Arial, 'Liberation Sans', sans-serif" font-weight="700" font-size="${trimNum(fit.fontSize)}" letter-spacing="${trimNum(fit.letterSpacing)}" fill="#000" dy="${trimNum(fit.dy)}" dx="0.97">
       <textPath href="#${id}" startOffset="50%" text-anchor="middle"${length}>${escapeHtml(name)}</textPath>
     </text>

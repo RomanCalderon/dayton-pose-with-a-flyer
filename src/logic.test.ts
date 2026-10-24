@@ -418,6 +418,8 @@ describe("defaults", () => {
       row3Max: 5,
       maxPlayers: 27,
     });
+    expect(base.pick.headshot).toEqual({ zoom: 1.18, offsetX: 0, offsetY: 0 });
+    expect(base.pick.nameInset).toBe(12);
   });
 });
 

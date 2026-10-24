@@ -123,7 +123,23 @@ export interface AppConfig {
    */
   pick: {
     grid: PickGridConfig;
+    /** Crop of the tall still inside the circular player button. */
+    headshot: PickHeadshotConfig;
+    /** Extra inset of the curved name, in stage px, past the Figma arc. */
+    nameInset: number;
   };
+}
+
+export interface PickHeadshotConfig {
+  /** Multiplier on the scale that makes the image as wide as the photo window. */
+  zoom: number;
+  /** Horizontal nudge in photo-window px. Positive moves the image to the right. */
+  offsetX: number;
+  /**
+   * How far down the image the crop starts.
+   * A value from -1 to 1 is a fraction of the image height. Any other value is pixels.
+   */
+  offsetY: number;
 }
 
 export interface PickGridConfig {

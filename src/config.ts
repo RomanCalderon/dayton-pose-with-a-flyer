@@ -107,6 +107,12 @@ export const DEFAULT_CONFIG: AppConfig = {
       row3Max: 5,
       maxPlayers: 27,
     },
+    headshot: {
+      zoom: 1.18,
+      offsetX: 0,
+      offsetY: 0,
+    },
+    nameInset: 12,
   },
 };
 
