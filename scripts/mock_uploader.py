@@ -2,7 +2,9 @@
 """Stand-in for the arena uploader.
 
 Accepts the kiosk contract and writes the JPEG plus a sidecar JSON file.
-Any HTTP 2xx is success for the kiosk. A missing file or participant_id is 400.
+Any HTTP 2xx is success for the kiosk. The JPEG part must be named `image`.
+A missing image or participant_id is 400. Any other part that carries a
+filename is 500 Unexpected field, matching multer.
 
     python3 scripts/mock_uploader.py --port 5001 --out ./uploads
 
@@ -77,10 +79,14 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError as error:
             self.send_json(400, {"error": str(error)})
             return
-        image = parts.get("file")
+        unexpected = [name for name, (filename, _payload) in parts.items() if filename and name != "image"]
+        if unexpected:
+            self.send_json(500, {"error": "Unexpected field", "field": unexpected[0]})
+            return
+        image = parts.get("image")
         participant_id = text_part(parts, "participant_id")
         if image is None or not image[1]:
-            self.send_json(400, {"error": "missing file"})
+            self.send_json(400, {"error": "missing image"})
             return
         if not participant_id:
             self.send_json(400, {"error": "missing participant_id"})

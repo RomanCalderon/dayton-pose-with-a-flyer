@@ -16,7 +16,7 @@ import { urlIsCanvasSafe } from "./media";
 import { athleteSourceKind, playbackFrameReady } from "./playback";
 import { chooseSides, createSession, lockWordsForCountdown, reduceSession } from "./session";
 import { extractParticipantId, type ParticipantIdConfig } from "./participant";
-import { uploadEndpoint, uploadFields, uploadFilename } from "./upload";
+import { buildUploadForm, jpegFieldName, uploadEndpoint, uploadFields, uploadFilename } from "./upload";
 import { escapeHtml, headshotSlots, PHOTO_RECT, previewFit, STAGE_H, STAGE_W } from "./ui";
 
 const base = parseConfig("{}");
@@ -296,6 +296,17 @@ describe("placement and upload", () => {
     });
     expect(uploadFilename("abc")).toBe("photo_abc.jpg");
     expect(uploadFilename("a/b c")).toBe("photo_abc.jpg");
+    expect(jpegFieldName("image")).toBe("image");
+    expect(jpegFieldName("bad name")).toBe("image");
+    expect(jpegFieldName("")).toBe("image");
+    const image = new Blob([Uint8Array.from([1, 2, 3])], { type: "image/jpeg" });
+    const form = buildUploadForm(image, "photo_abc.jpg", { participant_id: "1001", "bad name": "nope" }, "image");
+    expect(form.get("file")).toBeNull();
+    expect(form.get("bad name")).toBeNull();
+    expect(form.get("participant_id")).toBe("1001");
+    const part = form.get("image");
+    expect(part).toBeInstanceOf(File);
+    expect(part instanceof File ? part.name : "").toBe("photo_abc.jpg");
   });
 
   it("extracts a participant id from the configured QR shape", () => {
@@ -370,6 +381,7 @@ describe("defaults", () => {
     expect(base.output.format).toBe("image/jpeg");
     expect(base.uploader.baseUrl).toBe("http://localhost:5001");
     expect(base.uploader.uploadPath).toBe("/upload");
+    expect(base.uploader.fileField).toBe("image");
     expect(base.uploader.interactiveId).toBe("");
     expect(base.uploader.extraFields).toBe(false);
     expect(base.qr.participantId.from).toBe("auto");

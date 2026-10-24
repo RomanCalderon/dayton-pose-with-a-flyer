@@ -37,10 +37,26 @@ export function uploadFields(input: UploadInput): Record<string, string> {
   return fields;
 }
 
-export function buildUploadForm(image: Blob, filename: string, fields: Record<string, string>): FormData {
+/** Non-empty ASCII letters, digits, `_`, or `-`. Same rule as the Rust client. */
+export function fieldNameOk(name: string): boolean {
+  return /^[A-Za-z0-9_-]+$/.test(name);
+}
+
+/** JPEG part name. An illegal config value falls back to `image`. */
+export function jpegFieldName(fileField: string): string {
+  return fieldNameOk(fileField) ? fileField : "image";
+}
+
+export function buildUploadForm(
+  image: Blob,
+  filename: string,
+  fields: Record<string, string>,
+  fileField: string,
+): FormData {
   const form = new FormData();
-  form.append("file", image, filename);
+  form.append(jpegFieldName(fileField), image, filename);
   for (const [key, value] of Object.entries(fields)) {
+    if (!fieldNameOk(key)) continue;
     form.append(key, value);
   }
   return form;
@@ -61,6 +77,7 @@ export async function postPhoto(
   image: Blob,
   filename: string,
   fields: Record<string, string>,
+  fileField: string,
   timeoutMs: number,
 ): Promise<UploadResult> {
   const controller = new AbortController();
@@ -68,7 +85,7 @@ export async function postPhoto(
   try {
     const response = await fetch(endpoint, {
       method: "POST",
-      body: buildUploadForm(image, filename, fields),
+      body: buildUploadForm(image, filename, fields, fileField),
       signal: controller.signal,
     });
     const body = responseSnippet(await response.text());

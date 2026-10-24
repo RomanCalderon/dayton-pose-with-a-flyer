@@ -124,15 +124,17 @@ The Docker uploader listens on port 5000 inside the container and is published o
 POST {uploader.baseUrl}{uploader.uploadPath}
 Content-Type: multipart/form-data
 
-file             photo_<sessionId>.jpg   (image/jpeg)
+image            photo_<sessionId>.jpg   (image/jpeg)
 participant_id   required, from the QR
 interactive_id   only when uploader.interactiveId is non-empty
 ```
 
+The JPEG part name is `uploader.fileField` (default `image`). A name that is empty or not ASCII letters, digits, `_`, or `-` is sent as `image`.
+
 Example, with session `3f1c` and no interactive id:
 
 ```
-file = photo_3f1c.jpg
+image = photo_3f1c.jpg
 participant_id = 1001
 ```
 
@@ -147,6 +149,7 @@ Defaults:
 | `uploader.baseUrl` | `http://localhost:5001` |
 | `uploader.uploadPath` | `/upload` |
 | `uploader.requestTimeoutMs` | `8000` |
+| `uploader.fileField` | `image` |
 | `uploader.interactiveId` | `""` (field omitted) |
 | `uploader.extraFields` | `false` |
 | `qr.participantId.from` | `auto` |
@@ -187,7 +190,7 @@ Try the contract locally:
 python3 scripts/mock_uploader.py --port 5001 --out ./uploads
 ```
 
-A valid post returns 200 JSON and writes `photo_<sessionId>.jpg` plus a sidecar. A post without `file` or `participant_id` returns 400.
+A valid post returns 200 JSON and writes `photo_<sessionId>.jpg` plus a sidecar. A post without `image` or `participant_id` returns 400. A file part named anything other than `image` returns 500 Unexpected field.
 
 ## Windows build
 

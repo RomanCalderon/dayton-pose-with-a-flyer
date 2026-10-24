@@ -53,6 +53,8 @@ export interface AppConfig {
     baseUrl: string;
     uploadPath: string;
     requestTimeoutMs: number;
+    /** Multipart name of the JPEG part. The arena uploader expects `image`. */
+    fileField: string;
     /** Sent as interactive_id. Empty omits the field. */
     interactiveId: string;
     /** When true, also send the old prototype fields. Default requests stay on the contract. */

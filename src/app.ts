@@ -1289,11 +1289,19 @@ export class KioskApp {
               endpoint,
               image: Array.from(new Uint8Array(await blob.arrayBuffer())),
               filename,
+              fileField: this.config.uploader.fileField,
               fields: fieldList,
               timeoutMs: this.config.uploader.requestTimeoutMs,
             },
           })
-        : await postPhoto(endpoint, blob, filename, fields, this.config.uploader.requestTimeoutMs);
+        : await postPhoto(
+            endpoint,
+            blob,
+            filename,
+            fields,
+            this.config.uploader.fileField,
+            this.config.uploader.requestTimeoutMs,
+          );
       this.noteUpload(result);
       this.dispatch({ type: "send" });
     } catch (error) {

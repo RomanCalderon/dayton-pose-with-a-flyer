@@ -21,6 +21,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     baseUrl: "http://localhost:5001",
     uploadPath: "/upload",
     requestTimeoutMs: 8000,
+    fileField: "image",
     interactiveId: "",
     extraFields: false,
   },

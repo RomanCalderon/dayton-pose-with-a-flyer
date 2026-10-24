@@ -17,6 +17,7 @@ pub struct UploadPhotoRequest {
     pub endpoint: String,
     pub image: Vec<u8>,
     pub filename: String,
+    pub file_field: String,
     pub fields: Vec<UploadField>,
     pub timeout_ms: u64,
 }
@@ -170,12 +171,27 @@ fn safe_filename(filename: &str) -> String {
     }
 }
 
-fn multipart_body(boundary: &str, filename: &str, fields: &[(&str, &str)], image: &[u8]) -> Vec<u8> {
+fn file_part_name(name: &str) -> &str {
+    if field_name_ok(name) {
+        name
+    } else {
+        "image"
+    }
+}
+
+fn multipart_body(
+    boundary: &str,
+    filename: &str,
+    file_field: &str,
+    fields: &[(&str, &str)],
+    image: &[u8],
+) -> Vec<u8> {
     let mut body = Vec::new();
     let name = safe_filename(filename);
+    let part = file_part_name(file_field);
     let _ = write!(
         body,
-        "--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{name}\"\r\nContent-Type: image/jpeg\r\n\r\n"
+        "--{boundary}\r\nContent-Disposition: form-data; name=\"{part}\"; filename=\"{name}\"\r\nContent-Type: image/jpeg\r\n\r\n"
     );
     body.extend_from_slice(image);
     let _ = write!(body, "\r\n");
@@ -209,7 +225,13 @@ fn post_http(request: &UploadPhotoRequest, timeout: Duration) -> Result<(u16, St
         .iter()
         .map(|field| (field.name.as_str(), field.value.as_str()))
         .collect();
-    let body = multipart_body(boundary, &request.filename, &fields, &request.image);
+    let body = multipart_body(
+        boundary,
+        &request.filename,
+        &request.file_field,
+        &fields,
+        &request.image,
+    );
     let header = format!(
         "POST {path} HTTP/1.1\r\nHost: {host}\r\nContent-Type: multipart/form-data; boundary={boundary}\r\nContent-Length: {len}\r\nConnection: close\r\n\r\n",
         path = target.path,
@@ -346,11 +368,13 @@ mod tests {
         let body = multipart_body(
             "BOUND",
             "photo_abc.jpg",
+            "image",
             &[("participant_id", "1001")],
             b"jpeg",
         );
         let text = String::from_utf8_lossy(&body);
-        assert!(text.contains("name=\"file\"; filename=\"photo_abc.jpg\""));
+        assert!(text.contains("name=\"image\"; filename=\"photo_abc.jpg\""));
+        assert!(!text.contains("name=\"file\""));
         assert!(text.contains("Content-Type: image/jpeg"));
         assert!(text.contains("name=\"participant_id\""));
         assert!(text.contains("1001"));
@@ -361,6 +385,7 @@ mod tests {
         let with_extra = multipart_body(
             "BOUND",
             "photo_abc.jpg",
+            "image",
             &[
                 ("participant_id", "1001"),
                 ("interactive_id", "booth"),
@@ -372,6 +397,10 @@ mod tests {
         assert!(extra.contains("name=\"interactive_id\""));
         assert!(extra.contains("booth"));
         assert!(!extra.contains("bad name"));
+        let fallback = multipart_body("BOUND", "photo_abc.jpg", "bad name", &[], b"jpeg");
+        let fallback_text = String::from_utf8_lossy(&fallback);
+        assert!(fallback_text.contains("name=\"image\""));
+        assert!(!fallback_text.contains("bad name"));
     }
 
     #[test]
@@ -405,6 +434,7 @@ mod tests {
             endpoint: format!("http://localhost:{port}/upload"),
             image: b"jpeg-bytes".to_vec(),
             filename: "photo_abc.jpg".to_string(),
+            file_field: "image".to_string(),
             fields: vec![UploadField {
                 name: "participant_id".to_string(),
                 value: "1001".to_string(),
@@ -416,7 +446,8 @@ mod tests {
         assert_eq!(response.status, 201);
         assert!(response.body.contains("accepted"));
         assert!(request.contains("POST /upload "));
-        assert!(request.contains("name=\"file\""));
+        assert!(request.contains("name=\"image\""));
+        assert!(!request.contains("name=\"file\""));
         assert!(request.contains("filename=\"photo_abc.jpg\""));
         assert!(request.contains("name=\"participant_id\""));
         assert!(request.contains("1001"));
