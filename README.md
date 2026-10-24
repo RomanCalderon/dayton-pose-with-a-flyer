@@ -107,15 +107,15 @@ Everything the screens read lives under `assets/` (or whatever `assets.root` poi
 
 Still images the compositor or the JPEG touches (the takeaway frame, posters, the guest stand-in, headshots) are fetched into memory before upload. `http://asset.localhost` is a different origin from the Tauri page, and an `<img>` pointed at it taints WebGL even when the file displays on screen.
 
-Regenerate the placeholders with `python3 scripts/generate_assets.py` (Pillow and ffmpeg). The script draws original silhouettes and a plain navy/blue `branding/background.jpg`. It does not copy Dayton, NCAA, or sponsor artwork.
+Regenerate the placeholders with `python3 scripts/generate_assets.py` (Pillow and ffmpeg). The script draws original silhouettes. It does not copy Dayton, NCAA, or sponsor artwork, and it does not rewrite `branding/background.jpg`.
 
-The background file in this repo is that placeholder. Do not commit the real Dayton/WPCU collage. On the arena PC, put the real plate at `C:\DaytonKiosk\assets\branding\background.jpg` (the machine asset root wins over the bundled copy). If the file is missing or fails to load, the screen falls back to solid Dayton navy `#002554` and the miss is written to the log.
+`branding/background.jpg` in this repo is the real 3840×2160 collage, including the Wright-Patt strip, so builds ship it. A file at `C:\DaytonKiosk\assets\branding\background.jpg` still overrides the bundled copy. If the file is missing or fails to load, the screen falls back to solid Dayton navy `#002554` and the miss is written to the log.
 
 ### Fonts and marks
 
 Headlines use [Saira Extra Condensed](https://fonts.google.com/specimen/Saira+Extra+Condensed) and body text uses Saira. Both are SIL Open Font License; the license texts are in `licenses/`. Vitesse is not included. Libre Baskerville remains installed for the old chrome sponsor line and is not drawn.
 
-The red “D” and the frame artwork are original placeholders. The Wright-Patt strip is not drawn in the chrome; it is part of the real background plate, which stays off this public repo. Drop licensed logo files in when you have them, and point the frame at the real `takeaway_v1.png`. Do not commit trademarked logos or athlete photographs to this repository while it is public.
+The red “D” and the frame artwork are original placeholders. The Wright-Patt strip is not drawn in the chrome; it is baked into `branding/background.jpg`. Drop licensed logo files in when you have them, and point the frame at the real `takeaway_v1.png`. Do not commit other trademarked logos or athlete photographs to this repository while it is public.
 
 ## Uploader contract
 
@@ -218,7 +218,7 @@ The preview screen scales that full 2560×1440 buffer into the photo well. The t
 
 ## Known gaps
 
-- Placeholder roster, clips, headshots, frame, and background plate. No licensed Dayton or sponsor art, and no Vitesse. The attract loop is off unless `assets.attractVideo` is set.
+- Placeholder roster, clips, headshots, and frame. The background plate is the real collage. No Vitesse. The attract loop is off unless `assets.attractVideo` is set.
 - `list_cameras` serial and port lookup is Windows-only (Media Foundation + CfgMgr32). Other platforms return an empty list and the web layer falls back to the first webcam.
 - Friendly-name renaming of the two Brios is still a manual setup step. The app cannot hash a USB serial into a WebView `deviceId`.
 - The kiosk posts to the uploader and does not retry. Queueing and delivery live in that service.
