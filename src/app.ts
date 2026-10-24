@@ -8,7 +8,7 @@ import {
   transformForMeasuredSize,
 } from "./placement";
 import { matchCamera } from "./cameras";
-import { isHttpUrl } from "./cameras";
+import { extractParticipantId } from "./participant";
 import { idleTimeoutMs, stillThereMs, thanksTimeoutMs } from "./idle";
 import { formatLogLine, remember } from "./log";
 import { fetchAssetBlob, isImagePath, mediaIsSeekable, sourceIsCanvasSafe, urlIsCanvasSafe } from "./media";
@@ -18,7 +18,7 @@ import { assetUrl, isTauri, loadRuntime, setFullscreen, type RuntimePaths } from
 import { getQrReader, grabFrame } from "./qr";
 import { chooseSides, createSession, reduceSession, type SessionEvent } from "./session";
 import type { AppConfig, AthleteTransform, MediaDeviceLike, RosterFile, Session, Side, UploadResult } from "./types";
-import { postPhoto, uploadEndpoint, uploadFields } from "./upload";
+import { postPhoto, responseSnippet, uploadEndpoint, uploadFields, uploadFilename } from "./upload";
 import {
   canvasToJpeg,
   Compositor,
@@ -95,6 +95,8 @@ export class KioskApp {
   private localAssets = new Map<string, Promise<string | null>>();
   private assetRefresh = 0;
   private qrError: string | null = null;
+  private scanNotice: string | null = null;
+  private scanNoticeTimer = 0;
   private photoError: string | null = null;
   private uploadStatus = "";
   private debugOpen = false;
@@ -204,6 +206,13 @@ export class KioskApp {
     }
     if (params.get("paintThrows") === "1") this.paintThrows = true;
     if (params.get("webm") === "1") this.preferWebm = true;
+    const scan = params.get("scan");
+    if (scan) {
+      this.config = {
+        ...this.config,
+        debug: { ...this.config.debug, simulateScanUrl: scan },
+      };
+    }
     const assets = params.get("assets");
     if (assets && /^https?:\/\//i.test(assets)) {
       this.paths = { ...this.paths, assetRoot: assets.replace(/\/$/, "") };
@@ -217,11 +226,18 @@ export class KioskApp {
     const roster = params.get("team") === "womens" ? "womens" : this.config.roster.default;
     this.session = { ...createSession(roster, "fixture"), roster };
     if (screen === "attract") return;
-    this.session = reduceSession(this.session, {
-      type: this.config.start.mode === "touch" ? "touchStart" : "scan",
-      url: this.config.debug.simulateScanUrl,
-      sessionId: "fixture",
-    });
+    if (this.config.start.mode === "touch") {
+      this.session = reduceSession(this.session, { type: "touchStart", sessionId: "fixture" });
+    } else {
+      const raw = this.config.debug.simulateScanUrl;
+      const participantId = extractParticipantId(raw, this.config.qr.participantId) ?? "";
+      this.session = reduceSession(this.session, {
+        type: "scan",
+        url: raw,
+        participantId,
+        sessionId: "fixture",
+      });
+    }
     if (params.get("team") === "womens" && this.session.roster !== "womens") {
       this.session = reduceSession(this.session, { type: "toggleRoster" });
     }
@@ -314,6 +330,7 @@ export class KioskApp {
       roster: this.roster,
       assetUrl: (relative) => this.displayAssetUrl(relative),
       qrError: this.qrError,
+      scanNotice: this.scanNotice,
       photoError: this.photoError,
       showStillThere: this.showStillThere,
       uploadStatus: this.uploadStatus,
@@ -453,9 +470,34 @@ export class KioskApp {
 
   private simulateScan(): void {
     if (this.session.screen !== "attract" || this.config.start.mode !== "qr") return;
-    const url = this.config.debug.simulateScanUrl;
-    if (!isHttpUrl(url)) return;
-    this.dispatch({ type: "scan", url, sessionId: crypto.randomUUID() });
+    this.acceptScan(this.config.debug.simulateScanUrl);
+  }
+
+  private acceptScan(raw: string): void {
+    if (this.session.screen !== "attract" || this.config.start.mode !== "qr") return;
+    const text = raw.trim();
+    if (!text) return;
+    const participantId = extractParticipantId(text, this.config.qr.participantId);
+    if (!participantId) {
+      this.logLine(`scan rejected raw=${text}`);
+      this.scanNotice = "NO PARTICIPANT ID";
+      this.render();
+      window.clearTimeout(this.scanNoticeTimer);
+      this.scanNoticeTimer = window.setTimeout(() => {
+        this.scanNotice = null;
+        if (this.session.screen === "attract") this.render();
+      }, 4000);
+      return;
+    }
+    this.scanNotice = null;
+    window.clearTimeout(this.scanNoticeTimer);
+    this.logLine(`scan participant_id=${participantId} raw=${text}`);
+    this.dispatch({
+      type: "scan",
+      url: text,
+      participantId,
+      sessionId: crypto.randomUUID(),
+    });
   }
 
   private reset(): void {
@@ -1155,7 +1197,7 @@ export class KioskApp {
       if (frame) {
         const url = await reader(frame).catch(() => null);
         if (url && this.session.screen === "attract") {
-          this.dispatch({ type: "scan", url, sessionId: crypto.randomUUID() });
+          this.acceptScan(url);
           return;
         }
       }
@@ -1210,6 +1252,14 @@ export class KioskApp {
       this.safePaint();
       if (this.config.start.mode === "touch") {
         this.uploadStatus = "discarded (touch mode)";
+        this.logLine("upload skipped: touch mode");
+        this.dispatch({ type: "send" });
+        return;
+      }
+      const participantId = this.session.participantId ?? "";
+      if (!participantId) {
+        this.uploadStatus = "skipped (no participant_id)";
+        this.logLine("upload skipped: no participant_id");
         this.dispatch({ type: "send" });
         return;
       }
@@ -1221,33 +1271,51 @@ export class KioskApp {
         this.config.output.quality,
       );
       const endpoint = uploadEndpoint(this.config.uploader.baseUrl, this.config.uploader.uploadPath);
-      const meta = {
+      const filename = uploadFilename(this.session.sessionId);
+      const fields = uploadFields({
+        participantId,
+        interactiveId: this.config.uploader.interactiveId,
+        extraFields: this.config.uploader.extraFields,
         participantUrl: this.session.participantUrl ?? "",
         sessionId: this.session.sessionId,
         capturedAt: new Date().toISOString(),
         athletes: [...this.session.selectedIds],
         roster: this.session.roster,
-      };
+      });
+      const fieldList = Object.entries(fields).map(([name, value]) => ({ name, value }));
       const result = isTauri()
         ? await invoke<UploadResult>("upload_photo", {
             request: {
               endpoint,
               image: Array.from(new Uint8Array(await blob.arrayBuffer())),
+              filename,
+              fields: fieldList,
               timeoutMs: this.config.uploader.requestTimeoutMs,
-              ...uploadFields(meta),
             },
           })
-        : await postPhoto(endpoint, blob, meta, this.config.uploader.requestTimeoutMs);
-      this.uploadStatus = result.ok
-        ? `accepted ${result.status}`
-        : `failed ${result.error ?? result.status} (continuing)`;
+        : await postPhoto(endpoint, blob, filename, fields, this.config.uploader.requestTimeoutMs);
+      this.noteUpload(result);
       this.dispatch({ type: "send" });
     } catch (error) {
-      this.uploadStatus = `failed ${error instanceof Error ? error.message : String(error)} (continuing)`;
+      const message = error instanceof Error ? error.message : String(error);
+      this.uploadStatus = `failed ${message} (continuing)`;
+      this.logLine(`upload failed 0 ${message}`);
       this.dispatch({ type: "send" });
     } finally {
       this.sending = false;
     }
+  }
+
+  private noteUpload(result: UploadResult): void {
+    const body = responseSnippet(result.body ?? "");
+    if (result.ok) {
+      this.uploadStatus = `accepted ${result.status}`;
+      this.logLine(`upload ${result.status}${body ? ` ${body}` : ""}`);
+      return;
+    }
+    const reason = result.error ?? `HTTP ${result.status}`;
+    this.uploadStatus = `failed ${reason} (continuing)`;
+    this.logLine(`upload failed ${result.status} ${reason}${body ? ` ${body}` : ""}`);
   }
 
   private armIdle(): void {

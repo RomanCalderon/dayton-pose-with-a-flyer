@@ -32,9 +32,22 @@
     "debugOverlay": false
   },
   "uploader": {
-    "baseUrl": "http://127.0.0.1:8765",
-    "uploadPath": "/uploads",
-    "requestTimeoutMs": 5000
+    // Host port of the uploader container (it listens on :5000 inside Docker).
+    "baseUrl": "http://localhost:5001",
+    "uploadPath": "/upload",
+    "requestTimeoutMs": 8000,
+    "interactiveId": "",
+    "extraFields": false
+  },
+  "qr": {
+    // auto: a plain value is the id. A URL uses participant_id, participantId, pid, or id,
+    // then the last non-empty path segment. query / pathSegment / regex / raw are the other modes.
+    "participantId": {
+      "from": "auto",
+      "param": "participant_id",
+      "segment": -1,
+      "pattern": ""
+    }
   },
   "assets": {
     "root": "",
@@ -98,7 +111,7 @@
     "alwaysOnTop": false
   },
   "debug": {
-    "simulateScanUrl": "https://example.test/participants/demo-001",
+    "simulateScanUrl": "https://example.test/checkin?participant_id=1001",
     "allowKeyboard": true,
     "showHints": true
   }

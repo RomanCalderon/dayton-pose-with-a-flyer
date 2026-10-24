@@ -13,6 +13,7 @@ export interface ViewModel {
   roster: RosterFile | null;
   assetUrl: (relative: string) => string;
   qrError: string | null;
+  scanNotice: string | null;
   photoError: string | null;
   showStillThere: boolean;
   uploadStatus: string;
@@ -168,6 +169,7 @@ function renderQrCard(view: ViewModel): string {
         <div class="step-no">2</div>
         <p>HOLD YOUR UNIQUE<br>CODE IN FRONT OF SIDE<br>CAMERA TO PLAY</p>
         ${well}
+        ${view.scanNotice ? `<p class="scan-notice">${escapeHtml(view.scanNotice)}</p>` : ""}
       </div>
     </div>
   </div>`;
@@ -367,7 +369,8 @@ export function renderDebug(view: ViewModel): string {
   return `<aside class="debug">
     <strong>Pose with a Flyer · debug</strong>
     <div>screen ${escapeHtml(session.screen)} · mode ${escapeHtml(view.config.start.mode)} · roster ${escapeHtml(session.roster)}</div>
-    <div>url ${escapeHtml(session.participantUrl ?? "(none)")}</div>
+    <div>scan ${escapeHtml(session.participantUrl ?? "(none)")}</div>
+    <div>participant_id ${escapeHtml(session.participantId ?? "(none)")}</div>
     <div>athletes ${escapeHtml(session.selectedIds.join(", ") || "(none)")} · webm ${view.preferWebm ? "prefer" : "fallback"}</div>
     <div>cameras ${escapeHtml(view.cameraSummary)}</div>
     <div>upload ${escapeHtml(view.uploadStatus || "(idle)")}</div>

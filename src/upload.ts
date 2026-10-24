@@ -1,22 +1,45 @@
-import type { UploadMeta, UploadResult } from "./types";
+import type { RosterId, UploadResult } from "./types";
 
-export const UPLOAD_FILENAME = "photo_2560x1440.jpg";
-
-/** Field contract for the local uploader. `athletes` is a JSON array string. */
-export function uploadFields(meta: UploadMeta): Record<string, string> {
-  return {
-    participantUrl: meta.participantUrl,
-    sessionId: meta.sessionId,
-    capturedAt: meta.capturedAt,
-    athletes: JSON.stringify(meta.athletes),
-    roster: meta.roster,
-  };
+export interface UploadInput {
+  participantId: string;
+  interactiveId: string;
+  extraFields: boolean;
+  participantUrl: string;
+  sessionId: string;
+  capturedAt: string;
+  athletes: string[];
+  roster: RosterId;
 }
 
-export function buildUploadForm(image: Blob, meta: UploadMeta): FormData {
+/** `photo_<sessionId>.jpg`, with the id reduced to a safe filename token. */
+export function uploadFilename(sessionId: string): string {
+  const safe = sessionId.replace(/[^A-Za-z0-9._-]+/g, "").slice(0, 80);
+  return `photo_${safe || "session"}.jpg`;
+}
+
+/**
+ * Default body is `participant_id` plus `interactive_id` when that config is non-empty.
+ * `extraFields` puts the old prototype fields back on the same request.
+ */
+export function uploadFields(input: UploadInput): Record<string, string> {
+  const fields: Record<string, string> = {
+    participant_id: input.participantId,
+  };
+  const interactive = input.interactiveId.trim();
+  if (interactive) fields.interactive_id = interactive;
+  if (input.extraFields) {
+    fields.participantUrl = input.participantUrl;
+    fields.sessionId = input.sessionId;
+    fields.capturedAt = input.capturedAt;
+    fields.athletes = JSON.stringify(input.athletes);
+    fields.roster = input.roster;
+  }
+  return fields;
+}
+
+export function buildUploadForm(image: Blob, filename: string, fields: Record<string, string>): FormData {
   const form = new FormData();
-  form.append("image", image, UPLOAD_FILENAME);
-  const fields = uploadFields(meta);
+  form.append("file", image, filename);
   for (const [key, value] of Object.entries(fields)) {
     form.append(key, value);
   }
@@ -29,10 +52,15 @@ export function uploadEndpoint(baseUrl: string, uploadPath: string): string {
   return `${base}${path}`;
 }
 
+export function responseSnippet(body: string): string {
+  return body.replace(/[\r\n]+/g, " ").trim().slice(0, 500);
+}
+
 export async function postPhoto(
   endpoint: string,
   image: Blob,
-  meta: UploadMeta,
+  filename: string,
+  fields: Record<string, string>,
   timeoutMs: number,
 ): Promise<UploadResult> {
   const controller = new AbortController();
@@ -40,13 +68,14 @@ export async function postPhoto(
   try {
     const response = await fetch(endpoint, {
       method: "POST",
-      body: buildUploadForm(image, meta),
+      body: buildUploadForm(image, filename, fields),
       signal: controller.signal,
     });
+    const body = responseSnippet(await response.text());
     if (!response.ok) {
-      return { ok: false, status: response.status, error: `HTTP ${response.status}` };
+      return { ok: false, status: response.status, error: `HTTP ${response.status}`, body };
     }
-    return { ok: true, status: response.status };
+    return { ok: true, status: response.status, body };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return { ok: false, status: 0, error: message };

@@ -18,9 +18,19 @@ export const DEFAULT_CONFIG: AppConfig = {
     debugOverlay: false,
   },
   uploader: {
-    baseUrl: "http://127.0.0.1:8765",
-    uploadPath: "/uploads",
-    requestTimeoutMs: 5000,
+    baseUrl: "http://localhost:5001",
+    uploadPath: "/upload",
+    requestTimeoutMs: 8000,
+    interactiveId: "",
+    extraFields: false,
+  },
+  qr: {
+    participantId: {
+      from: "auto",
+      param: "participant_id",
+      segment: -1,
+      pattern: "",
+    },
   },
   assets: {
     root: "",
@@ -71,7 +81,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     alwaysOnTop: false,
   },
   debug: {
-    simulateScanUrl: "https://example.test/participants/demo-001",
+    simulateScanUrl: "https://example.test/checkin?participant_id=1001",
     allowKeyboard: true,
     showHints: true,
   },

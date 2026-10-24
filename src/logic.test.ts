@@ -15,7 +15,8 @@ import {
 import { urlIsCanvasSafe } from "./media";
 import { athleteSourceKind, playbackFrameReady } from "./playback";
 import { chooseSides, createSession, lockWordsForCountdown, reduceSession } from "./session";
-import { UPLOAD_FILENAME, uploadEndpoint, uploadFields } from "./upload";
+import { extractParticipantId, type ParticipantIdConfig } from "./participant";
+import { uploadEndpoint, uploadFields, uploadFilename } from "./upload";
 import { escapeHtml, headshotSlots, PHOTO_RECT, previewFit, STAGE_H, STAGE_W } from "./ui";
 
 const base = parseConfig("{}");
@@ -47,10 +48,12 @@ describe("session", () => {
     session = reduceSession(session, {
       type: "scan",
       url: "https://example.test/participants/1",
+      participantId: "1",
       sessionId: "abc",
     });
     expect(session.screen).toBe("pick");
     expect(session.participantUrl).toContain("participants/1");
+    expect(session.participantId).toBe("1");
     session = reduceSession(session, { type: "toggleAthlete", id: "m01", max: 2 });
     session = reduceSession(session, { type: "toggleAthlete", id: "m02", max: 2 });
     session = reduceSession(session, { type: "toggleAthlete", id: "m03", max: 2 });
@@ -79,6 +82,7 @@ describe("session", () => {
     session = reduceSession(session, { type: "idle", roster: "mens" });
     expect(session.screen).toBe("attract");
     expect(session.participantUrl).toBeNull();
+    expect(session.participantId).toBeNull();
     expect(session.roster).toBe("mens");
   });
 
@@ -106,9 +110,22 @@ describe("session", () => {
     });
     expect(session.screen).toBe("attract");
     session = reduceSession(session, { type: "touchStart", sessionId: "t" });
-    session = reduceSession(session, { type: "scan", url: "https://example.test/x", sessionId: "nope" });
+    session = reduceSession(session, {
+      type: "scan",
+      url: "https://example.test/x",
+      participantId: "x",
+      sessionId: "nope",
+    });
     expect(session.participantUrl).toBeNull();
     expect(session.screen).toBe("pick");
+    const rejected = reduceSession(createSession("mens"), {
+      type: "scan",
+      url: "https://example.test/",
+      participantId: "  ",
+      sessionId: "no",
+    });
+    expect(rejected.screen).toBe("attract");
+    expect(rejected.participantId).toBeNull();
   });
 });
 
@@ -253,21 +270,53 @@ describe("placement and upload", () => {
   });
 
   it("builds the uploader contract", () => {
-    expect(uploadEndpoint("http://127.0.0.1:8765/", "uploads")).toBe("http://127.0.0.1:8765/uploads");
-    expect(uploadFields({
-      participantUrl: "https://example.test/participants/demo-001",
+    expect(uploadEndpoint("http://localhost:5001/", "upload")).toBe("http://localhost:5001/upload");
+    const input = {
+      participantId: "1001",
+      interactiveId: "",
+      extraFields: false,
+      participantUrl: "https://example.test/checkin?participant_id=1001",
       sessionId: "abc",
       capturedAt: "2026-10-24T12:00:00.000Z",
       athletes: ["m01", "m02"],
-      roster: "mens",
-    })).toEqual({
-      participantUrl: "https://example.test/participants/demo-001",
+      roster: "mens" as const,
+    };
+    expect(uploadFields(input)).toEqual({ participant_id: "1001" });
+    expect(uploadFields({ ...input, interactiveId: "  booth-a  " })).toEqual({
+      participant_id: "1001",
+      interactive_id: "booth-a",
+    });
+    expect(uploadFields({ ...input, extraFields: true })).toEqual({
+      participant_id: "1001",
+      participantUrl: "https://example.test/checkin?participant_id=1001",
       sessionId: "abc",
       capturedAt: "2026-10-24T12:00:00.000Z",
       athletes: '["m01","m02"]',
       roster: "mens",
     });
-    expect(UPLOAD_FILENAME).toBe("photo_2560x1440.jpg");
+    expect(uploadFilename("abc")).toBe("photo_abc.jpg");
+    expect(uploadFilename("a/b c")).toBe("photo_abc.jpg");
+  });
+
+  it("extracts a participant id from the configured QR shape", () => {
+    const auto: ParticipantIdConfig = { from: "auto", param: "participant_id", segment: -1, pattern: "" };
+    expect(extractParticipantId("1001", auto)).toBe("1001");
+    expect(extractParticipantId("  demo-001  ", auto)).toBe("demo-001");
+    expect(extractParticipantId("https://example.test/checkin?participant_id=1001", auto)).toBe("1001");
+    expect(extractParticipantId("https://example.test/checkin?participantId=77&id=9", auto)).toBe("77");
+    expect(extractParticipantId("https://example.test/p?pid=4", auto)).toBe("4");
+    expect(extractParticipantId("https://example.test/p?id=9", auto)).toBe("9");
+    expect(extractParticipantId("https://example.test/participants/demo-001/", auto)).toBe("demo-001");
+    expect(extractParticipantId("https://example.test/", auto)).toBeNull();
+    expect(extractParticipantId("   ", auto)).toBeNull();
+    expect(extractParticipantId("https://example.test/p?code=55", { ...auto, param: "code" })).toBe("55");
+    expect(extractParticipantId("https://example.test/p?id=9", { ...auto, from: "query", param: "id" })).toBe("9");
+    expect(extractParticipantId("https://example.test/p?id=9", { ...auto, from: "query", param: "missing" })).toBeNull();
+    expect(extractParticipantId("https://example.test/a/b/c", { ...auto, from: "pathSegment", segment: -2 })).toBe("b");
+    expect(extractParticipantId("https://example.test/a/b/c", { ...auto, from: "pathSegment", segment: 0 })).toBe("a");
+    expect(extractParticipantId("card PID-44", { ...auto, from: "regex", pattern: "PID-(\\d+)" })).toBe("44");
+    expect(extractParticipantId("https://example.test/p?id=9", { ...auto, from: "raw" })).toBe("https://example.test/p?id=9");
+    expect(extractParticipantId("card", { ...auto, from: "regex", pattern: "[" })).toBeNull();
   });
 
   it("hides a countdown athlete until playback presents a frame", () => {
@@ -319,5 +368,11 @@ describe("defaults", () => {
     expect(base.timing.walkInStartsAt).toBe(6);
     expect(base.timing.freezeBeforeCaptureMs).toBe(2000);
     expect(base.output.format).toBe("image/jpeg");
+    expect(base.uploader.baseUrl).toBe("http://localhost:5001");
+    expect(base.uploader.uploadPath).toBe("/upload");
+    expect(base.uploader.interactiveId).toBe("");
+    expect(base.uploader.extraFields).toBe(false);
+    expect(base.qr.participantId.from).toBe("auto");
+    expect(extractParticipantId(base.debug.simulateScanUrl, base.qr.participantId)).toBe("1001");
   });
 });

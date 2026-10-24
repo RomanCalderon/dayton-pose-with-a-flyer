@@ -1,16 +1,22 @@
 #!/usr/bin/env python3
-"""Tiny stand-in for the local uploader service.
+"""Stand-in for the arena uploader.
 
-Accepts the kiosk's multipart POST and writes the JPEG plus a sidecar JSON
-file. Any 2xx is success for the kiosk; this server returns 202.
+Accepts the kiosk contract and writes the JPEG plus a sidecar JSON file.
+Any HTTP 2xx is success for the kiosk. A missing file or participant_id is 400.
 
-    python3 scripts/mock_uploader.py --port 8765 --out ./uploads
+    python3 scripts/mock_uploader.py --port 5001 --out ./uploads
+
+The real service listens on port 5000 inside Docker and is published on the
+host as http://localhost:5001. This mock binds IPv4 and IPv6 loopback when
+--host localhost so either resolution works.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import socket
+import threading
 from email import message_from_bytes
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -40,6 +46,13 @@ def parse_multipart(content_type: str, body: bytes) -> dict[str, tuple[str, byte
     return parts
 
 
+def text_part(parts: dict[str, tuple[str, bytes]], name: str) -> str:
+    found = parts.get(name)
+    if found is None:
+        return ""
+    return found[1].decode("utf-8", "replace").strip()
+
+
 class Handler(BaseHTTPRequestHandler):
     out_dir: Path = Path("uploads")
 
@@ -52,8 +65,9 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_POST(self) -> None:  # noqa: N802
-        if self.path.rstrip("/") != "/uploads":
-            self.send_error(404, "expected /uploads")
+        path = self.path.split("?", 1)[0].rstrip("/") or "/"
+        if path != "/upload":
+            self.send_json(404, {"error": "expected /upload"})
             return
         length = int(self.headers.get("Content-Length", "0"))
         body = self.rfile.read(length)
@@ -61,46 +75,90 @@ class Handler(BaseHTTPRequestHandler):
         try:
             parts = parse_multipart(content_type, body)
         except ValueError as error:
-            self.send_error(400, str(error))
+            self.send_json(400, {"error": str(error)})
             return
-        image = parts.get("image")
-        if image is None:
-            self.send_error(400, "missing image")
+        image = parts.get("file")
+        participant_id = text_part(parts, "participant_id")
+        if image is None or not image[1]:
+            self.send_json(400, {"error": "missing file"})
             return
-        athletes_raw = parts.get("athletes", ("", b"[]"))[1].decode("utf-8", "replace")
+        if not participant_id:
+            self.send_json(400, {"error": "missing participant_id"})
+            return
+        interactive_id = text_part(parts, "interactive_id")
+        filename = Path(image[0] or f"photo_{participant_id}.jpg").name or "photo.jpg"
         meta = {
-            "participantUrl": parts.get("participantUrl", ("", b""))[1].decode("utf-8", "replace"),
-            "sessionId": parts.get("sessionId", ("", b""))[1].decode("utf-8", "replace"),
-            "capturedAt": parts.get("capturedAt", ("", b""))[1].decode("utf-8", "replace"),
-            "athletes": json.loads(athletes_raw),
-            "roster": parts.get("roster", ("", b""))[1].decode("utf-8", "replace"),
+            "participant_id": participant_id,
+            "filename": filename,
+            "bytes": len(image[1]),
+            "fields": sorted(parts),
         }
+        if interactive_id:
+            meta["interactive_id"] = interactive_id
         self.out_dir.mkdir(parents=True, exist_ok=True)
-        stem = meta["sessionId"] or "session"
-        (self.out_dir / f"{stem}.jpg").write_bytes(image[1])
+        (self.out_dir / filename).write_bytes(image[1])
+        stem = Path(filename).stem
         (self.out_dir / f"{stem}.json").write_text(json.dumps(meta, indent=2) + "\n")
-        payload = json.dumps({"status": "accepted"}).encode()
-        self.send_response(202)
+        self.send_json(200, {"status": "accepted", "participant_id": participant_id})
+
+    def send_json(self, status: int, payload: dict[str, object]) -> None:
+        raw = json.dumps(payload).encode()
+        self.send_response(status)
         self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(payload)))
+        self.send_header("Content-Length", str(len(raw)))
         self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
-        self.wfile.write(payload)
+        self.wfile.write(raw)
 
     def log_message(self, fmt: str, *args: object) -> None:
         print(f"[uploader] {self.address_string()} {fmt % args}")
 
 
+class V6Server(ThreadingHTTPServer):
+    address_family = socket.AF_INET6
+
+
+def bind_servers(host: str, port: int) -> list[ThreadingHTTPServer]:
+    if host == "localhost":
+        targets = [("127.0.0.1", ThreadingHTTPServer), ("::1", V6Server)]
+    elif ":" in host:
+        targets = [(host, V6Server)]
+    else:
+        targets = [(host, ThreadingHTTPServer)]
+    servers: list[ThreadingHTTPServer] = []
+    errors: list[str] = []
+    for address, factory in targets:
+        try:
+            servers.append(factory((address, port), Handler))
+        except OSError as error:
+            errors.append(f"{address}:{port} {error}")
+    if not servers:
+        raise SystemExit("could not bind mock uploader: " + "; ".join(errors))
+    return servers
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument("--host", default="localhost")
+    parser.add_argument("--port", type=int, default=5001)
     parser.add_argument("--out", default="uploads")
     args = parser.parse_args()
     Handler.out_dir = Path(args.out)
-    server = ThreadingHTTPServer((args.host, args.port), Handler)
-    print(f"mock uploader on http://{args.host}:{args.port}/uploads -> {Handler.out_dir}")
-    server.serve_forever()
+    servers = bind_servers(args.host, args.port)
+    threads = []
+    for server in servers[1:]:
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        threads.append(thread)
+    bound = ", ".join(f"http://{server.server_address[0]}:{server.server_address[1]}/upload" for server in servers)
+    print(f"mock uploader on {bound} -> {Handler.out_dir}")
+    try:
+        servers[0].serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        for server in servers:
+            server.shutdown()
 
 
 if __name__ == "__main__":

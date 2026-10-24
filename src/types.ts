@@ -1,3 +1,5 @@
+import type { ParticipantIdConfig } from "./participant";
+
 export type StartMode = "qr" | "touch";
 export type RosterId = "mens" | "womens";
 export type Side = "left" | "right";
@@ -51,6 +53,13 @@ export interface AppConfig {
     baseUrl: string;
     uploadPath: string;
     requestTimeoutMs: number;
+    /** Sent as interactive_id. Empty omits the field. */
+    interactiveId: string;
+    /** When true, also send the old prototype fields. Default requests stay on the contract. */
+    extraFields: boolean;
+  };
+  qr: {
+    participantId: ParticipantIdConfig;
   };
   assets: {
     root: string;
@@ -134,7 +143,10 @@ export interface AthleteTransform {
 
 export interface Session {
   screen: Screen;
+  /** Raw QR text. Kept for logs and the debug overlay. */
   participantUrl: string | null;
+  /** Id extracted for the uploader. Null until a valid scan. */
+  participantId: string | null;
   sessionId: string;
   roster: RosterId;
   selectedIds: string[];
@@ -168,16 +180,10 @@ export interface MediaDeviceLike {
   kind: string;
 }
 
-export interface UploadMeta {
-  participantUrl: string;
-  sessionId: string;
-  capturedAt: string;
-  athletes: string[];
-  roster: RosterId;
-}
-
 export interface UploadResult {
   ok: boolean;
   status: number;
   error?: string;
+  /** First ~500 characters of the response body. */
+  body?: string;
 }

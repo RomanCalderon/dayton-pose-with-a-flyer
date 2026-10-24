@@ -239,6 +239,18 @@ button, video { font-family: inherit; }
   line-height: 1.2;
 }
 
+.scan-notice {
+  margin: 14px 8px 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.38);
+  color: white;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-align: center;
+}
+
 .touch-start {
   position: absolute;
   left: 50%;

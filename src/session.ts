@@ -8,7 +8,7 @@ import type {
 } from "./types";
 
 export type SessionEvent =
-  | { type: "scan"; url: string; sessionId: string }
+  | { type: "scan"; url: string; participantId: string; sessionId: string }
   | { type: "touchStart"; sessionId: string }
   | { type: "toggleRoster" }
   | { type: "toggleAthlete"; id: string; max: number }
@@ -35,6 +35,7 @@ export function createSession(roster: RosterId, sessionId = ""): Session {
   return {
     screen: "attract",
     participantUrl: null,
+    participantId: null,
     sessionId,
     roster,
     selectedIds: [],
@@ -66,10 +67,13 @@ export function reduceSession(session: Session, event: SessionEvent): Session {
   switch (event.type) {
     case "scan": {
       if (session.screen !== "attract") return session;
+      const participantId = event.participantId.trim();
+      if (!participantId) return session;
       return {
         ...createSession(session.roster, event.sessionId),
         screen: "pick",
         participantUrl: event.url,
+        participantId,
       };
     }
     case "touchStart": {

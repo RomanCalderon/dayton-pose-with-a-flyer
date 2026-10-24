@@ -39,7 +39,7 @@ These are on whenever `debug.allowKeyboard` is true (the prototype default).
 
 The debug overlay can also simulate a scan, force the VP9-alpha clip, and show the plus/minus buttons. A one-line hint sits on the attract screen while `debug.showHints` is true.
 
-`?screen=attract|pick|countdown|adjust|preview|thanks` jumps to that screen for layout checks. Add `&team=womens` or `&select=1`. `?mode=touch` or `?mode=qr` overrides `start.mode` for that launch, which is how you try touch-to-start without editing the config. `?webm=1` prefers the VP9 clip when the roster has one.
+`?screen=attract|pick|countdown|adjust|preview|thanks` jumps to that screen for layout checks. Add `&team=womens` or `&select=1`. `?mode=touch` or `?mode=qr` overrides `start.mode` for that launch, which is how you try touch-to-start without editing the config. `?webm=1` prefers the VP9 clip when the roster has one. `?scan=` replaces the simulated QR text for that launch.
 
 ## What a guest does
 
@@ -116,31 +116,78 @@ The red “D”, the sponsor words, and the frame artwork are original placehold
 
 ## Uploader contract
 
-On **Send** in QR mode the app composites the camera (or frozen frame), athlete layers, and takeaway frame into a 2560×1440 JPEG at quality 0.9 and POSTs it. Touch mode skips the request and discards the image. Network errors, timeouts, and non-2xx responses are logged and the thank-you screen still shows. The kiosk does not retry; the uploader owns the queue.
+On **Send** in QR mode the app composites the camera (or frozen frame), athlete layers, and takeaway frame into a 2560×1440 JPEG at quality 0.9 and POSTs it. Touch mode uploads nothing and discards the image. Any HTTP 2xx is success. Timeouts, network errors, and other statuses are written to the log and the thank-you screen still shows. The kiosk does not retry; the uploader owns the queue.
+
+The Docker uploader listens on port 5000 inside the container and is published on the host as `http://localhost:5001`. The installed app posts from Rust. That client resolves `localhost` to every address the OS returns, then tries `127.0.0.1` if it was not in the list, so an IPv6 miss still reaches a container published on IPv4. `npm run dev` uses `fetch` from the page. The URL has to be `http://`.
 
 ```
 POST {uploader.baseUrl}{uploader.uploadPath}
 Content-Type: multipart/form-data
 
-image            photo_2560x1440.jpg   (image/jpeg)
-participantUrl   the QR text, stored unchanged
-sessionId        UUID minted when the session started
-capturedAt       ISO 8601 timestamp
-athletes         JSON array of athlete ids, e.g. ["m01","m02"]
-roster           "mens" or "womens"
-
--> 202 Accepted
+file             photo_<sessionId>.jpg   (image/jpeg)
+participant_id   required, from the QR
+interactive_id   only when uploader.interactiveId is non-empty
 ```
 
-Any HTTP 2xx is treated as success. The default URL is `http://127.0.0.1:8765/uploads`. The URL has to be `http://` (the kiosk posts to a machine on the arena LAN). The installed app sends that POST from Rust, so the uploader does not need CORS headers. `npm run dev` uses `fetch` from the page, and the mock server below allows that.
+Example, with session `3f1c` and no interactive id:
 
-Try it locally:
+```
+file = photo_3f1c.jpg
+participant_id = 1001
+```
+
+`uploader.extraFields` defaults to false. Set it true to also send the old prototype fields (`participantUrl`, `sessionId`, `capturedAt`, `athletes`, `roster`) on the same request. The default request does not include them.
+
+The status and the first 500 characters of the response body are appended to `kiosk.log` and shown on the F2 overlay.
+
+Defaults:
+
+| Key | Default |
+| --- | --- |
+| `uploader.baseUrl` | `http://localhost:5001` |
+| `uploader.uploadPath` | `/upload` |
+| `uploader.requestTimeoutMs` | `8000` |
+| `uploader.interactiveId` | `""` (field omitted) |
+| `uploader.extraFields` | `false` |
+| `qr.participantId.from` | `auto` |
+| `qr.participantId.param` | `participant_id` |
+| `qr.participantId.segment` | `-1` |
+| `qr.participantId.pattern` | `""` |
+
+### QR participant id
+
+`participant_id` comes from the scanned text. The raw text is kept for the log and F2. If no id can be extracted the kiosk stays on the attract screen and shows `NO PARTICIPANT ID` for a few seconds. It does not start a session.
+
+`qr.participantId.from`:
+
+| Mode | Result |
+| --- | --- |
+| `auto` | A plain number or string is the id. A URL uses `participant_id`, `participantId`, `pid`, or `id` (the configured `param` is tried first), otherwise the last non-empty path segment. |
+| `raw` | The whole scanned string. |
+| `query` | The query parameter named by `param`. |
+| `pathSegment` | A path segment. `-1` is the last non-empty segment, `0` is the first. |
+| `regex` | `pattern`. The first capture group wins, otherwise the whole match. |
+
+Examples with the default `auto` settings:
+
+```
+1001                                              -> 1001
+https://example.test/checkin?participant_id=1001 -> 1001
+https://example.test/participants/demo-001       -> demo-001
+https://example.test/                             -> rejected
+```
+
+`query` with `"param": "id"` reads `?id=9`. `pathSegment` with `"segment": -2` on `/a/b/c` reads `b`. `regex` with `"pattern": "PID-(\\d+)"` reads `44` from `card PID-44`.
+
+Press S on the attract screen to simulate `debug.simulateScanUrl`, which defaults to `https://example.test/checkin?participant_id=1001`.
+
+Try the contract locally:
 
 ```bash
-python3 scripts/mock_uploader.py --port 8765 --out ./uploads
+python3 scripts/mock_uploader.py --port 5001 --out ./uploads
 ```
 
-Each accepted post writes `<sessionId>.jpg` and `<sessionId>.json`.
+A valid post returns 200 JSON and writes `photo_<sessionId>.jpg` plus a sidecar. A post without `file` or `participant_id` returns 400.
 
 ## Windows build
 
@@ -168,7 +215,7 @@ The preview screen scales that full 2560×1440 buffer into the photo well above 
 - Placeholder roster, clips, headshots, frame, and attract loop. No licensed Dayton or sponsor art, and no Vitesse.
 - `list_cameras` serial and port lookup is Windows-only (Media Foundation + CfgMgr32). Other platforms return an empty list and the web layer falls back to the first webcam.
 - Friendly-name renaming of the two Brios is still a manual setup step. The app cannot hash a USB serial into a WebView `deviceId`.
-- The uploader service does not exist yet. This repo only defines the POST above and keeps going when it is down.
+- The kiosk posts to the uploader and does not retry. Queueing and delivery live in that service.
 - Touch-to-start has no approved Figma frame. The prototype uses a full-screen button over the attract art and hides the email lines on thank you.
 - Plus/minus defaults to on so a desktop can resize. The approved kiosk config turns it off once pinch is confirmed.
 - Fire video is present and hidden. It is not a real flame plate.
