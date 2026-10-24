@@ -1,0 +1,785 @@
+:root {
+  --navy: #002554;
+  --navy-2: #031833;
+  --panel: #1874c4;
+  --panel-deep: #0e5ea8;
+  --chapel: #00acec;
+  --red: #bd1634;
+  --white: #ffffff;
+  --ink: #07111f;
+  --dock: #071833;
+  color: var(--white);
+  font-family: "Saira", "Arial Narrow", sans-serif;
+  background: #000;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #app, #viewport {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+  user-select: none;
+  touch-action: none;
+}
+
+button, video { font-family: inherit; }
+
+#viewport { position: relative; }
+
+#stage {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 3840px;
+  height: 2160px;
+  transform-origin: center center;
+  overflow: hidden;
+  background: var(--navy);
+}
+
+#gl {
+  position: absolute;
+  z-index: 1;
+  background: #000;
+}
+
+#gl.mode-hidden { display: none; }
+
+#gl.mode-full,
+#gl.mode-preview {
+  left: 0;
+  top: 0;
+  width: 3840px;
+  height: 2160px;
+}
+
+/* Clip instead of resizing. Changing the canvas CSS size resets the WebGL buffer. */
+#gl.mode-preview {
+  z-index: 2;
+  clip-path: inset(130px 470px 399px 470px);
+}
+
+#chrome {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+#chrome button, #chrome .touch-start, #chrome .debug, #chrome .debug button, #chrome .attract.is-touch {
+  pointer-events: auto;
+}
+
+.screen { position: absolute; inset: 0; }
+
+.bg, .bg-navy, .bg-diagonal, .bg-grid, .bg-grain, .bg-video {
+  position: absolute;
+  inset: 0;
+}
+
+.bg-navy { background: var(--navy); }
+
+.bg-diagonal {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent 30%),
+    linear-gradient(115deg, #1c82d4 0%, #156eb8 55%, #0f5ea3 100%);
+  clip-path: polygon(0 0, 42% 0, 58% 100%, 0 100%);
+}
+
+.bg-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.45;
+  mix-blend-mode: screen;
+}
+
+.bg-grid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  background-size: 92px 92px;
+  opacity: 0.45;
+  mix-blend-mode: overlay;
+}
+
+.bg-grain {
+  background-size: 420px 420px;
+  opacity: 0.35;
+  mix-blend-mode: overlay;
+  pointer-events: none;
+}
+
+.mega {
+  position: absolute;
+  left: 36px;
+  top: 28px;
+  margin: 0;
+  z-index: 2;
+  font-family: "Saira Extra Condensed", "Arial Narrow", sans-serif;
+  font-weight: 700;
+  font-size: 318px;
+  line-height: 0.82;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.mega span { display: block; }
+
+.hero-player {
+  position: absolute;
+  left: 90px;
+  top: 620px;
+  width: 760px;
+  height: 1500px;
+  z-index: 2;
+  filter: drop-shadow(0 30px 30px rgba(0, 0, 0, 0.35));
+}
+
+.qr-card {
+  position: absolute;
+  right: 92px;
+  top: 430px;
+  width: 760px;
+  z-index: 4;
+  background: white;
+  color: var(--red);
+  border-radius: 36px;
+  overflow: hidden;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
+}
+
+.qr-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 28px 24px 18px;
+  gap: 8px;
+}
+
+.qr-register {
+  font-family: "Saira Extra Condensed", sans-serif;
+  font-weight: 700;
+  font-size: 54px;
+  letter-spacing: 1px;
+}
+
+.qr-split { display: flex; min-height: 620px; }
+
+.qr-step {
+  width: 50%;
+  padding: 28px 26px 24px;
+  color: white;
+  text-align: center;
+}
+
+.qr-step p {
+  margin: 12px 0 18px;
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: 0.3px;
+}
+
+.qr-step-dark { background: #111; }
+.qr-step-red { background: var(--red); }
+
+.step-no {
+  width: 54px;
+  height: 54px;
+  margin: 0 auto;
+  border-radius: 50%;
+  border: 3px solid white;
+  display: grid;
+  place-items: center;
+  font-family: "Saira Extra Condensed", sans-serif;
+  font-size: 36px;
+  font-weight: 700;
+}
+
+.reg-qr {
+  width: 230px;
+  height: 230px;
+  background: white;
+  padding: 10px;
+}
+
+.qr-url {
+  margin-top: 12px;
+  font-size: 20px;
+  letter-spacing: 0.6px;
+  font-weight: 600;
+}
+
+.qr-well, .qr-error {
+  width: 250px;
+  height: 250px;
+  margin: 8px auto 0;
+  background: #f4f4f4;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.qr-well video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.qr-error {
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  color: var(--ink);
+  background: #ececec;
+  font-size: 22px;
+  line-height: 1.2;
+}
+
+.touch-start {
+  position: absolute;
+  left: 50%;
+  top: 58%;
+  transform: translate(-50%, -50%);
+  z-index: 5;
+  min-width: 980px;
+  height: 180px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--chapel);
+  color: var(--navy);
+  font-family: "Saira Extra Condensed", sans-serif;
+  font-size: 92px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  cursor: pointer;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+}
+
+.key-hint {
+  position: absolute;
+  left: 80px;
+  bottom: 36px;
+  z-index: 6;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 28px;
+  letter-spacing: 0.4px;
+}
+
+.sponsor {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 1180px;
+  height: 210px;
+  background: white;
+  color: var(--navy);
+  clip-path: polygon(8% 0, 100% 0, 100% 100%, 0 100%);
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 70px 10px 160px;
+}
+
+.sponsor-name {
+  font-family: "Libre Baskerville", Georgia, serif;
+  font-size: 52px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  line-height: 1;
+}
+
+.sponsor-sub {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  color: #3c4d63;
+}
+
+.sponsor-tag {
+  margin-top: 8px;
+  font-family: "Saira Extra Condensed", sans-serif;
+  font-weight: 700;
+  font-size: 28px;
+  letter-spacing: 1px;
+}
+
+.mark {
+  display: inline-grid;
+  place-items: center;
+  font-family: "Saira Extra Condensed", sans-serif;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.mark-red {
+  width: 92px;
+  height: 78px;
+  background: var(--red);
+  color: white;
+  border-radius: 16px;
+  font-size: 64px;
+}
+
+.mark-white {
+  width: 74px;
+  height: 64px;
+  color: white;
+  font-size: 64px;
+}
+
+.mark-navy { color: var(--navy); }
+
+.pick-title {
+  position: absolute;
+  left: 70px;
+  top: 20px;
+  z-index: 2;
+  font-family: "Saira Extra Condensed", sans-serif;
+  font-weight: 700;
+  line-height: 0.84;
+}
+
+.pick-kicker { font-size: 210px; letter-spacing: 1px; }
+
+.pick-count {
+  font-size: 250px;
+  display: flex;
+  align-items: flex-end;
+  gap: 24px;
+}
+
+.pick-count span { font-size: 210px; }
+
+.pick-players {
+  position: absolute;
+  left: 168px;
+  top: 292px;
+  font-family: "Saira", sans-serif;
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: 3px;
+  background: rgba(0, 37, 84, 0.35);
+  padding: 4px 10px;
+}
+
+.headshot {
+  position: absolute;
+  width: 275px;
+  height: 275px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  z-index: 3;
+}
+
+.headshot-photo {
+  position: absolute;
+  left: 18px;
+  top: 8px;
+  width: 230px;
+  height: 230px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #d9dee6;
+  box-shadow: 0 0 0 8px rgba(255, 255, 255, 0.92);
+}
+
+.headshot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.headshot.is-selected .headshot-photo {
+  box-shadow: 0 0 0 8px white, 0 0 0 16px var(--chapel);
+}
+
+.headshot-name {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+}
+
+.headshot-name text {
+  fill: white;
+  font-family: "Saira", sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+}
+
+.jersey {
+  position: absolute;
+  left: 50%;
+  bottom: 6px;
+  transform: translateX(-50%);
+  width: 78px;
+  height: 78px;
+  border-radius: 50%;
+  background: var(--chapel);
+  color: white;
+  display: grid;
+  place-items: center;
+  font-family: "Saira Extra Condensed", sans-serif;
+  font-size: 40px;
+  font-weight: 700;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+}
+
+.pick-actions, .dock {
+  position: absolute;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  height: 132px;
+  padding: 16px 22px 16px 28px;
+  border-radius: 999px;
+  background: var(--dock);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
+}
+
+.pick-actions { right: 80px; bottom: 250px; }
+
+.dock {
+  left: 50%;
+  bottom: 48px;
+  transform: translateX(-50%);
+}
+
+.dock-preview { bottom: 230px; }
+
+.dock-label {
+  font-family: "Saira Extra Condensed", sans-serif;
+  font-size: 42px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  padding: 0 12px 0 18px;
+  white-space: nowrap;
+}
+
+.pill {
+  height: 100px;
+  min-width: 300px;
+  padding: 0 36px;
+  border-radius: 999px;
+  border: 3px solid transparent;
+  font-family: "Saira Extra Condensed", sans-serif;
+  font-size: 44px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  cursor: pointer;
+}
+
+.pill-ghost {
+  background: transparent;
+  color: white;
+  border-color: rgba(255, 255, 255, 0.85);
+}
+
+.pill-go, .pill-send {
+  background: white;
+  color: var(--navy);
+}
+
+.pill-go.is-disabled, .pill-go:disabled {
+  background: #9aa4b2;
+  color: #d7dde6;
+  cursor: default;
+}
+
+.corner-btn {
+  position: absolute;
+  left: 40px;
+  bottom: 40px;
+  z-index: 6;
+  min-width: 200px;
+  height: 66px;
+  padding: 0 22px;
+  border-radius: 999px;
+  border: 0;
+  background: var(--navy);
+  color: white;
+  font-family: "Saira Extra Condensed", sans-serif;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  cursor: pointer;
+}
+
+.corner-light {
+  background: rgba(255, 255, 255, 0.12);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.look {
+  position: absolute;
+  left: 50%;
+  top: 36px;
+  transform: translateX(-50%);
+  width: 340px;
+  height: 390px;
+  z-index: 4;
+}
+
+.look-svg {
+  width: 340px;
+  height: 340px;
+  overflow: visible;
+}
+
+.look-label {
+  font-family: "Saira", sans-serif;
+}
+
+.look-count {
+  position: absolute;
+  left: 50%;
+  bottom: 8px;
+  transform: translateX(-50%);
+  font-family: "Saira Extra Condensed", sans-serif;
+  font-size: 86px;
+  font-weight: 700;
+  line-height: 0.85;
+  background: #000;
+  color: white;
+  min-width: 90px;
+  padding: 0 10px 6px;
+  text-align: center;
+}
+
+.lock {
+  position: absolute;
+  right: 40px;
+  top: 180px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-family: "Saira Extra Condensed", sans-serif;
+  font-weight: 700;
+  font-size: 280px;
+  line-height: 0.78;
+  letter-spacing: -2px;
+  color: transparent;
+}
+
+.lock span.is-on { color: #3c3c3c; }
+
+.media-pool {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.media-pool video,
+.media-pool img {
+  position: absolute;
+  left: -5000px;
+  top: 0;
+  width: 360px;
+  height: 1280px;
+}
+
+.photo-error {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  transform: translate(-50%, -50%);
+  z-index: 5;
+  background: rgba(0, 0, 0, 0.72);
+  color: white;
+  padding: 28px 36px;
+  border-radius: 18px;
+  font-size: 36px;
+  font-weight: 600;
+}
+
+.fpo-badge {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  transform: translate(-50%, -120px);
+  z-index: 4;
+  background: #e0129a;
+  color: white;
+  font-family: "Saira Extra Condensed", sans-serif;
+  font-size: 42px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  padding: 6px 18px;
+  pointer-events: none;
+}
+
+.flash {
+  position: absolute;
+  inset: 0;
+  background: #d5d5d5;
+  z-index: 8;
+  pointer-events: none;
+}
+
+.pm {
+  position: absolute;
+  z-index: 5;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pm-btn {
+  width: 128px;
+  height: 128px;
+  border-radius: 50%;
+  border: 0;
+  background: var(--chapel);
+  color: white;
+  font-size: 72px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.vert {
+  position: absolute;
+  top: 150px;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  font-family: "Saira Extra Condensed", sans-serif;
+  font-weight: 700;
+  font-size: 248px;
+  line-height: 0.78;
+  letter-spacing: -1px;
+}
+
+.vert-left { left: 36px; }
+.vert-right { right: 20px; align-items: flex-end; }
+
+.frame-overlay {
+  position: absolute;
+  z-index: 4;
+  pointer-events: none;
+  filter: drop-shadow(0 30px 40px rgba(0, 0, 0, 0.35));
+}
+
+.fire-layer {
+  position: absolute;
+  left: 470px;
+  top: 130px;
+  width: 2900px;
+  height: 200px;
+  object-fit: cover;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.thanks-copy {
+  position: absolute;
+  left: 120px;
+  top: 180px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 40px;
+}
+
+.thanks-copy h1 {
+  margin: 0;
+  font-family: "Saira Extra Condensed", sans-serif;
+  font-size: 340px;
+  line-height: 0.8;
+  font-weight: 700;
+}
+
+.thanks-copy .mark-white {
+  width: 420px;
+  height: 360px;
+  font-size: 320px;
+}
+
+.thanks-copy .mark-white::before { font-size: 320px; }
+
+.thanks-sub {
+  position: absolute;
+  left: 140px;
+  top: 980px;
+  z-index: 2;
+  margin: 0;
+  font-family: "Saira Extra Condensed", sans-serif;
+  font-size: 64px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  line-height: 1.05;
+}
+
+.still-there {
+  position: absolute;
+  left: 50%;
+  top: 80px;
+  transform: translateX(-50%);
+  z-index: 9;
+  background: var(--red);
+  color: white;
+  font-family: "Saira Extra Condensed", sans-serif;
+  font-size: 64px;
+  letter-spacing: 1px;
+  padding: 12px 36px;
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+.debug {
+  position: fixed;
+  left: 16px;
+  bottom: 16px;
+  z-index: 20;
+  width: min(560px, calc(100vw - 32px));
+  background: rgba(6, 16, 32, 0.92);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 14px;
+  padding: 12px 14px;
+  font-family: "Saira", sans-serif;
+  font-size: 14px;
+  line-height: 1.35;
+  pointer-events: auto;
+}
+
+.debug strong { display: block; margin-bottom: 4px; font-size: 15px; }
+
+.debug-keys { margin-top: 6px; color: #c9d6e8; }
+
+.debug-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+
+.debug-row button {
+  background: white;
+  color: var(--navy);
+  border: 0;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.boot {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 64px;
+  background: var(--navy);
+}

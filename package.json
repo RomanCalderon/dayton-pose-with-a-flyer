@@ -1,0 +1,39 @@
+{
+  "name": "pose-with-a-flyer",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "test": "vitest run",
+    "preview": "vite preview --host 0.0.0.0 --port 1420",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@fontsource/libre-baskerville": "^5.2.8",
+    "@fontsource/saira": "^5.2.8",
+    "@fontsource/saira-extra-condensed": "^5.2.8",
+    "@tauri-apps/api": "^2.12.4",
+    "zxing-wasm": "^3.0.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.12.4",
+    "typescript": "^5.9.3",
+    "vite": "^6.4.1",
+    "vitest": "^3.2.4"
+  },
+  "description": "Prototype of the Dayton Flyers arena photo-op kiosk. A guest scans a participant QR code (or taps to start), picks up to two athletes, and poses while those athletes walk in from the edges of the live camera. The app composites the shot, lets them drag and scale the athletes, then either hands a JPEG to a local uploader or throws the photo away.",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RomanCalderon/dayton-pose-with-a-flyer.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/RomanCalderon/dayton-pose-with-a-flyer/issues"
+  },
+  "homepage": "https://github.com/RomanCalderon/dayton-pose-with-a-flyer#readme"
+}

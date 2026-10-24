@@ -1,0 +1,83 @@
+name: Windows release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> src-tauri
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Test frontend
+        run: npm test
+
+      - name: Test Rust core
+        run: cargo test --manifest-path src-tauri/Cargo.toml --lib
+
+      - name: Build installers and publish the release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_type == 'tag' && github.ref_name || 'v0.1.0-prototype' }}
+          releaseName: Pose with a Flyer ${{ github.ref_type == 'tag' && github.ref_name || 'v0.1.0-prototype' }}
+          releaseBody: |
+            Prototype of the Pose with a Flyer kiosk.
+
+            The NSIS installer is the one to run. It is unsigned, so Windows SmartScreen will warn until you choose More info, then Run anyway. WebView2 is already part of Windows 11; the installer can also download the Evergreen bootstrapper.
+
+            The app opens windowed. Press S on the attract screen to simulate a QR scan. See the repository README for the uploader contract, keyboard shortcuts, and how to swap assets.
+          releaseDraft: false
+          prerelease: true
+          args: --bundles nsis,msi
+
+      - name: Package a portable zip
+        shell: pwsh
+        run: |
+          $root = "src-tauri/target/release"
+          $stage = Join-Path $env:RUNNER_TEMP "pose-portable"
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          $exe = Get-ChildItem $root -Filter "pose-with-a-flyer.exe" | Select-Object -First 1
+          if (-not $exe) { throw "release exe not found" }
+          Copy-Item $exe.FullName $stage
+          foreach ($dir in @("resources", "assets")) {
+            $path = Join-Path $root $dir
+            if (Test-Path $path) { Copy-Item $path (Join-Path $stage $dir) -Recurse }
+          }
+          $zip = Join-Path $env:RUNNER_TEMP "PoseWithAFlyer-portable.zip"
+          if (Test-Path $zip) { Remove-Item $zip }
+          Compress-Archive -Path (Join-Path $stage "*") -DestinationPath $zip
+          Write-Output "PORTABLE_ZIP=$zip" >> $env:GITHUB_ENV
+
+      - name: Attach the portable zip
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = if ("${{ github.ref_type }}" -eq "tag") { "${{ github.ref_name }}" } else { "v0.1.0-prototype" }
+          gh release upload $tag $env:PORTABLE_ZIP --clobber

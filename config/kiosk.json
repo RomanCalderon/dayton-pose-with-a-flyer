@@ -1,0 +1,105 @@
+{
+  // Pose with a Flyer — operator config.
+  // The first file that exists wins:
+  //   1. C:/DaytonKiosk/kiosk.json
+  //   2. kiosk.json next to the installed .exe
+  //   3. the per-user app config directory
+  //   4. this bundled file
+  // Comments are allowed. Restart the app after editing.
+
+  "start": {
+    "mode": "qr"
+    // "qr": scan a participant URL, then upload the photo.
+    // "touch": full-screen touch to start, photo is discarded, thank-you email line hidden.
+  },
+  "idle": {
+    "timeoutSeconds": 60,
+    "previewTimeoutSeconds": 90,
+    "thankYouAutoReturnSeconds": 8,
+    "stillThereWarningSeconds": 0
+  },
+  "roster": {
+    "default": "mens",
+    "maxSelections": 2
+  },
+  "athletes": {
+    "singleSelectionSide": "random"
+  },
+  "features": {
+    "multitouchAdjust": true,
+    "plusMinusButtons": true,
+    "rotateButton": false,
+    "debugOverlay": false
+  },
+  "uploader": {
+    "baseUrl": "http://127.0.0.1:8765",
+    "uploadPath": "/uploads",
+    "requestTimeoutMs": 5000
+  },
+  "assets": {
+    "root": "",
+    "rosterFile": "roster.json",
+    "headshotsDir": "headshots",
+    "athleteVideosDir": "athletes",
+    "attractVideo": "attract/loop.mp4",
+    "takeawayFrame": "frames/takeaway_v1.png",
+    "fireVideo": "fx/fire.mp4"
+  },
+  "cameras": {
+    "photo": {
+      "role": "top-center user feed + photo",
+      "match": {
+        "by": "label",
+        "serial": "",
+        "usbPort": "",
+        "label": "",
+        "deviceId": ""
+      },
+      "width": 1280,
+      "height": 720,
+      "fps": 30,
+      "mirrorPreview": true
+    },
+    "qr": {
+      "role": "side QR scanner",
+      "match": {
+        "by": "label",
+        "serial": "",
+        "usbPort": "",
+        "label": "",
+        "deviceId": ""
+      },
+      "width": 1280,
+      "height": 720,
+      "fps": 30,
+      "scanIntervalMs": 150
+    },
+    "onMissing": "fallback"
+  },
+  "output": {
+    "width": 2560,
+    "height": 1440,
+    "format": "image/jpeg",
+    "quality": 0.9
+  },
+  "timing": {
+    "countdownFrom": 10,
+    "walkInStartsAt": 6,
+    "freezeBeforeCaptureMs": 2000,
+    "flashMs": 300
+  },
+  "render": {
+    "stageResolution": [2560, 1440]
+  },
+  "window": {
+    "fullscreen": false,
+    "width": 1600,
+    "height": 900,
+    "alwaysOnTop": false
+  },
+  "debug": {
+    "simulateScanUrl": "https://example.test/participants/demo-001",
+    "allowKeyboard": true,
+    "showHints": true
+  }
+}

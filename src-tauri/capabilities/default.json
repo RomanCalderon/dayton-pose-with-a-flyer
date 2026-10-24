@@ -1,0 +1,14 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Local kiosk window. Camera permission is granted for the photo and QR roles.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-set-fullscreen",
+    "core:window:allow-is-fullscreen",
+    "allow-load-config",
+    "allow-list-cameras",
+    "allow-upload-photo"
+  ]
+}

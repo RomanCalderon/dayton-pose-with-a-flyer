@@ -1,0 +1,182 @@
+export type StartMode = "qr" | "touch";
+export type RosterId = "mens" | "womens";
+export type Side = "left" | "right";
+export type SingleSide = Side | "random";
+export type CameraMatchBy = "serial" | "usbPort" | "label" | "deviceId";
+export type OnMissing = "error" | "fallback";
+export type Screen =
+  | "attract"
+  | "pick"
+  | "countdown"
+  | "flash"
+  | "adjust"
+  | "preview"
+  | "thanks";
+
+export interface CameraMatch {
+  by: CameraMatchBy;
+  serial: string;
+  usbPort: string;
+  label: string;
+  deviceId: string;
+}
+
+export interface CameraRoleConfig {
+  role: string;
+  match: CameraMatch;
+  width: number;
+  height: number;
+  fps: number;
+  mirrorPreview?: boolean;
+  scanIntervalMs?: number;
+}
+
+export interface AppConfig {
+  start: { mode: StartMode };
+  idle: {
+    timeoutSeconds: number;
+    previewTimeoutSeconds: number;
+    thankYouAutoReturnSeconds: number;
+    stillThereWarningSeconds: number;
+  };
+  roster: { default: RosterId; maxSelections: number };
+  athletes: { singleSelectionSide: SingleSide };
+  features: {
+    multitouchAdjust: boolean;
+    plusMinusButtons: boolean;
+    rotateButton: boolean;
+    debugOverlay: boolean;
+  };
+  uploader: {
+    baseUrl: string;
+    uploadPath: string;
+    requestTimeoutMs: number;
+  };
+  assets: {
+    root: string;
+    rosterFile: string;
+    headshotsDir: string;
+    athleteVideosDir: string;
+    attractVideo: string;
+    takeawayFrame: string;
+    fireVideo: string;
+  };
+  cameras: {
+    photo: CameraRoleConfig;
+    qr: CameraRoleConfig;
+    onMissing: OnMissing;
+  };
+  output: {
+    width: number;
+    height: number;
+    format: string;
+    quality: number;
+  };
+  timing: {
+    countdownFrom: number;
+    walkInStartsAt: number;
+    freezeBeforeCaptureMs: number;
+    flashMs: number;
+  };
+  render: { stageResolution: [number, number] };
+  window: {
+    fullscreen: boolean;
+    width: number;
+    height: number;
+    alwaysOnTop: boolean;
+  };
+  debug: {
+    simulateScanUrl: string;
+    allowKeyboard: boolean;
+    showHints: boolean;
+  };
+}
+
+export interface ClipMeta {
+  layout: "stacked-alpha" | "vp9-alpha";
+  width: number;
+  height: number;
+  fps?: number;
+  durationSeconds?: number;
+}
+
+export interface Athlete {
+  id: string;
+  firstName: string;
+  lastName: string;
+  jersey: number;
+  team: RosterId;
+  headshot: string;
+  placeholder?: boolean;
+  clips: {
+    left: string;
+    right: string;
+    leftWebm?: string;
+    rightWebm?: string;
+  };
+}
+
+export interface RosterFile {
+  version: number;
+  note?: string;
+  clipMeta: Record<string, ClipMeta>;
+  teams: Record<RosterId, Athlete[]>;
+}
+
+export interface AthleteTransform {
+  /** Center X in output pixels. */
+  x: number;
+  /** Center Y in output pixels. */
+  y: number;
+  scale: number;
+}
+
+export interface Session {
+  screen: Screen;
+  participantUrl: string | null;
+  sessionId: string;
+  roster: RosterId;
+  selectedIds: string[];
+  sides: Record<string, Side>;
+  transforms: Record<string, AthleteTransform>;
+  selectedAdjustId: string | null;
+  /** Whole seconds remaining during countdown, otherwise null. */
+  countdown: number | null;
+}
+
+export interface ListedCamera {
+  label: string;
+  serial: string;
+  usbPort: string;
+  symlink: string;
+  vendorId: string;
+  productId: string;
+  infrared: boolean;
+}
+
+export interface CameraList {
+  platform: string;
+  implemented: boolean;
+  cameras: ListedCamera[];
+  note: string;
+}
+
+export interface MediaDeviceLike {
+  deviceId: string;
+  label: string;
+  kind: string;
+}
+
+export interface UploadMeta {
+  participantUrl: string;
+  sessionId: string;
+  capturedAt: string;
+  athletes: string[];
+  roster: RosterId;
+}
+
+export interface UploadResult {
+  ok: boolean;
+  status: number;
+  error?: string;
+}

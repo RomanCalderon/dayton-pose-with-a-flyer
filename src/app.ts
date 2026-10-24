@@ -1,0 +1,1077 @@
+import { defaultTransform } from "./placement";
+import { hitTest, clampTransform } from "./placement";
+import { matchCamera } from "./cameras";
+import { isHttpUrl } from "./cameras";
+import { idleTimeoutMs, stillThereMs, thanksTimeoutMs } from "./idle";
+import { invoke } from "@tauri-apps/api/core";
+import { assetUrl, isTauri, loadRuntime, setFullscreen, type RuntimePaths } from "./platform";
+import { getQrReader, grabFrame } from "./qr";
+import { chooseSides, createSession, reduceSession, type SessionEvent } from "./session";
+import type { AppConfig, AthleteTransform, MediaDeviceLike, RosterFile, Session, Side, UploadResult } from "./types";
+import { postPhoto, uploadEndpoint, uploadFields } from "./upload";
+import {
+  canvasToJpeg,
+  Compositor,
+  type AthleteLayer,
+  type AlphaLayout,
+  type BackgroundLayer,
+} from "./compositor";
+import {
+  STAGE_H,
+  STAGE_W,
+  canvasMode,
+  clipSize,
+  findAthlete,
+  renderChrome,
+  type ViewModel,
+} from "./ui";
+
+interface PointerPoint {
+  x: number;
+  y: number;
+}
+
+interface LoadedClip {
+  video: HTMLVideoElement;
+  poster: HTMLImageElement | null;
+  /** Stacked or straight frame copied out of the video so later paints cannot go blank. */
+  still: HTMLCanvasElement | null;
+  layout: AlphaLayout;
+  file: string;
+  width: number;
+  height: number;
+}
+
+export class KioskApp {
+  private paths!: RuntimePaths;
+  private config!: AppConfig;
+  private roster: RosterFile | null = null;
+  private session: Session = createSession("mens");
+  private compositor!: Compositor;
+  private stage!: HTMLElement;
+  private chrome!: HTMLElement;
+  private canvas!: HTMLCanvasElement;
+  private mediaPool!: HTMLElement;
+  private photoVideo: HTMLVideoElement | null = null;
+  private qrVideo: HTMLVideoElement | null = null;
+  private frozenCamera: HTMLCanvasElement | null = null;
+  private guestImage: HTMLImageElement | null = null;
+  private frameImage: HTMLImageElement | null = null;
+  private clips = new Map<string, LoadedClip>();
+  private qrError: string | null = null;
+  private photoError: string | null = null;
+  private uploadStatus = "";
+  private debugOpen = false;
+  private preferWebm = false;
+  private showStillThere = false;
+  private flashOpacity = 0;
+  private sending = false;
+  private raf = 0;
+  private countdownStarted = 0;
+  private walkStarted = false;
+  private frozen = false;
+  private capturing = false;
+  private idleTimer = 0;
+  private warningTimer = 0;
+  private thanksTimer = 0;
+  private qrTimer = 0;
+  private pointers = new Map<number, PointerPoint>();
+  private drag: { id: string; lastX: number; lastY: number } | null = null;
+  private pinch: { id: string; startDist: number; startScale: number } | null = null;
+  private devices: MediaDeviceLike[] = [];
+
+  constructor(private readonly root: HTMLElement) {}
+
+  async start(): Promise<void> {
+    this.root.innerHTML = `<div id="viewport"><div id="stage"><canvas id="gl"></canvas><div id="chrome"></div><div id="media-pool" class="media-pool"></div></div></div>`;
+    this.stage = this.root.querySelector("#stage") as HTMLElement;
+    this.chrome = this.root.querySelector("#chrome") as HTMLElement;
+    this.canvas = this.root.querySelector("#gl") as HTMLCanvasElement;
+    this.mediaPool = this.root.querySelector("#media-pool") as HTMLElement;
+    this.paths = await loadRuntime();
+    this.config = this.paths.config;
+    this.applyDebugQuery();
+    this.debugOpen = this.config.features.debugOverlay;
+    this.session = createSession(this.config.roster.default);
+    this.compositor = new Compositor(this.canvas, this.config.output.width, this.config.output.height);
+    this.bind();
+    this.fit();
+    await this.loadRoster();
+    await this.loadStillImages();
+    this.applyFixture();
+    this.render();
+    await this.refreshDevices();
+    if (this.session.screen === "attract") this.syncAttractCamera();
+    if (this.session.screen === "countdown") this.beginCountdown();
+  }
+
+  private bind(): void {
+    window.addEventListener("resize", () => this.fit());
+    this.chrome.addEventListener("click", (event) => this.onClick(event));
+    this.stage.addEventListener("pointerdown", (event) => this.onPointerDown(event));
+    this.stage.addEventListener("pointermove", (event) => this.onPointerMove(event));
+    this.stage.addEventListener("pointerup", (event) => this.onPointerUp(event));
+    this.stage.addEventListener("pointercancel", (event) => this.onPointerUp(event));
+    window.addEventListener("keydown", (event) => this.onKey(event));
+    const bump = () => this.armIdle();
+    window.addEventListener("pointerdown", bump);
+    window.addEventListener("keydown", bump);
+  }
+
+  private fit(): void {
+    const scale = Math.min(window.innerWidth / STAGE_W, window.innerHeight / STAGE_H);
+    this.stage.style.transform = `translate(-50%, -50%) scale(${scale})`;
+  }
+
+  private async loadRoster(): Promise<void> {
+    const url = assetUrl(this.paths, this.config.assets.rosterFile);
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Roster not found at ${url}`);
+    this.roster = (await response.json()) as RosterFile;
+  }
+
+  private async loadStillImages(): Promise<void> {
+    this.guestImage = await loadImage(assetUrl(this.paths, "placeholders/guest.png"));
+    this.frameImage = await loadImage(assetUrl(this.paths, this.config.assets.takeawayFrame));
+  }
+
+  private applyDebugQuery(): void {
+    const params = new URLSearchParams(window.location.search);
+    const mode = params.get("mode");
+    if (mode === "touch" || mode === "qr") {
+      this.config = { ...this.config, start: { mode } };
+    }
+  }
+
+  private applyFixture(): void {
+    const params = new URLSearchParams(window.location.search);
+    const screen = params.get("screen");
+    if (!screen || !this.roster) return;
+    const roster = params.get("team") === "womens" ? "womens" : this.config.roster.default;
+    this.session = { ...createSession(roster, "fixture"), roster };
+    if (screen === "attract") return;
+    this.session = reduceSession(this.session, {
+      type: this.config.start.mode === "touch" ? "touchStart" : "scan",
+      url: this.config.debug.simulateScanUrl,
+      sessionId: "fixture",
+    });
+    if (params.get("team") === "womens" && this.session.roster !== "womens") {
+      this.session = reduceSession(this.session, { type: "toggleRoster" });
+    }
+    const count = Number(params.get("select") ?? (screen === "pick" ? "1" : "2"));
+    const athletes = this.roster.teams[this.session.roster];
+    for (let i = 0; i < Math.min(count, athletes.length); i += 1) {
+      this.session = reduceSession(this.session, {
+        type: "toggleAthlete",
+        id: athletes[i].id,
+        max: this.config.roster.maxSelections,
+      });
+    }
+    if (screen === "pick") return;
+    this.goLetsGo();
+    if (screen === "countdown") return;
+    if (screen === "flash") {
+      this.session = reduceSession(this.session, { type: "flash" });
+      this.flashOpacity = 0.85;
+      return;
+    }
+    this.session = reduceSession(this.session, { type: "flash" });
+    this.session = reduceSession(this.session, { type: "flashDone" });
+    if (screen === "adjust") return;
+    this.session = reduceSession(this.session, { type: "allDone" });
+    if (screen === "preview") return;
+    this.session = reduceSession(this.session, { type: "send" });
+  }
+
+  private dispatch(event: SessionEvent): void {
+    const previous = this.session.screen;
+    this.session = reduceSession(this.session, event);
+    if (previous !== this.session.screen) this.onScreenChanged(previous);
+    this.render();
+  }
+
+  private onScreenChanged(previous: Session["screen"]): void {
+    if (previous === "countdown" || previous === "flash") {
+      cancelAnimationFrame(this.raf);
+      this.pauseClips();
+    }
+    if (this.session.screen === "attract") {
+      this.stopPhoto();
+      this.frozenCamera = null;
+      this.syncAttractCamera();
+    } else {
+      this.stopQr();
+    }
+    if (this.session.screen === "countdown") this.beginCountdown();
+    if (this.session.screen === "thanks") this.armThanks();
+    else window.clearTimeout(this.thanksTimer);
+    this.armIdle();
+  }
+
+  private render(): void {
+    const view = this.view();
+    this.chrome.innerHTML = renderChrome(view);
+    const mode = canvasMode(this.session.screen);
+    this.canvas.className = `mode-${mode}`;
+    this.mountQrVideo();
+    if (mode !== "hidden") this.paint();
+  }
+
+  private view(): ViewModel {
+    return {
+      config: this.config,
+      session: this.session,
+      roster: this.roster,
+      assetUrl: (relative) => assetUrl(this.paths, relative),
+      qrError: this.qrError,
+      photoError: this.photoError,
+      showStillThere: this.showStillThere,
+      uploadStatus: this.uploadStatus,
+      debugOpen: this.debugOpen,
+      cameraSummary: this.cameraSummary(),
+      preferWebm: this.preferWebm,
+      pathsLabel: this.paths ? `${this.paths.configPath} · assets ${this.paths.assetRoot}` : "",
+      hasPhoto: Boolean(this.photoVideo || this.frozenCamera),
+      flashOpacity: this.flashOpacity,
+    };
+  }
+
+  private cameraSummary(): string {
+    const labels = this.devices.map((device) => device.label || device.deviceId.slice(0, 6)).join(", ");
+    const listed = this.paths?.cameras.cameras.length
+      ? ` · rust ${this.paths.cameras.cameras.map((camera) => `${camera.label}${camera.serial ? ` #${camera.serial}` : ""}`).join(", ")}`
+      : "";
+    return (labels || "none") + listed;
+  }
+
+  private onClick(event: MouseEvent): void {
+    const target = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-action]");
+    if (!target) return;
+    const action = target.dataset.action;
+    if (action === "touch-start") this.startTouch();
+    else if (action === "simulate-scan") this.simulateScan();
+    else if (action === "swap-team") this.dispatch({ type: "toggleRoster" });
+    else if (action === "toggle-athlete" && target.dataset.id) {
+      this.dispatch({
+        type: "toggleAthlete",
+        id: target.dataset.id,
+        max: this.config.roster.maxSelections,
+      });
+      this.prewarmSelected();
+    } else if (action === "lets-go") this.goLetsGo();
+    else if (action === "go-back") this.dispatch({ type: "goBack" });
+    else if (action === "try-again") this.tryAgain();
+    else if (action === "all-done") this.dispatch({ type: "allDone" });
+    else if (action === "send") void this.send();
+    else if (action === "start-over") this.reset();
+    else if (action === "scale") this.nudgeScale(Number(target.dataset.dir ?? "1"));
+    else if (action === "toggle-webm") {
+      this.preferWebm = !this.preferWebm;
+      this.clips.clear();
+      this.render();
+    } else if (action === "toggle-plusminus") {
+      this.config = {
+        ...this.config,
+        features: { ...this.config.features, plusMinusButtons: !this.config.features.plusMinusButtons },
+      };
+      this.render();
+    }
+  }
+
+  private onKey(event: KeyboardEvent): void {
+    if (!this.config.debug.allowKeyboard) return;
+    const key = event.key;
+    if (key === "F2") {
+      event.preventDefault();
+      this.debugOpen = !this.debugOpen;
+      this.render();
+      return;
+    }
+    if (key === "f" || key === "F") {
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      event.preventDefault();
+      void setFullscreen(!document.fullscreenElement);
+      return;
+    }
+    if (key === "Escape") {
+      this.reset();
+      return;
+    }
+    if (key === "Backspace") {
+      this.dispatch({ type: "goBack" });
+      return;
+    }
+    if (key === "s" || key === "S") {
+      if (this.session.screen === "attract") {
+        if (this.config.start.mode === "touch") this.startTouch();
+        else this.simulateScan();
+      }
+      return;
+    }
+    if (key === "Enter") {
+      this.primaryAction();
+      return;
+    }
+    if ((key === "n" || key === "N") && this.session.screen === "countdown") {
+      this.countdownStarted = performance.now() - (this.config.timing.countdownFrom - 0.05) * 1000;
+      return;
+    }
+    if (this.session.screen === "pick" && /^[1-9]$/.test(key)) {
+      const athlete = this.roster?.teams[this.session.roster][Number(key) - 1];
+      if (athlete) {
+        this.dispatch({
+          type: "toggleAthlete",
+          id: athlete.id,
+          max: this.config.roster.maxSelections,
+        });
+      }
+      return;
+    }
+    if (this.session.screen !== "adjust") return;
+    if (key === "Tab") {
+      event.preventDefault();
+      this.cycleAthlete();
+      return;
+    }
+    if (key === "[") this.nudgeScale(-1);
+    if (key === "]") this.nudgeScale(1);
+    const step = event.shiftKey ? 40 : 16;
+    if (key === "ArrowLeft") this.nudge(-step, 0);
+    if (key === "ArrowRight") this.nudge(step, 0);
+    if (key === "ArrowUp") this.nudge(0, -step);
+    if (key === "ArrowDown") this.nudge(0, step);
+  }
+
+  private primaryAction(): void {
+    if (this.session.screen === "attract") {
+      if (this.config.start.mode === "touch") this.startTouch();
+      return;
+    }
+    if (this.session.screen === "pick" && this.session.selectedIds.length > 0) this.goLetsGo();
+    else if (this.session.screen === "adjust") this.dispatch({ type: "allDone" });
+    else if (this.session.screen === "preview") void this.send();
+  }
+
+  private startTouch(): void {
+    if (this.config.start.mode !== "touch" || this.session.screen !== "attract") return;
+    this.dispatch({ type: "touchStart", sessionId: crypto.randomUUID() });
+  }
+
+  private simulateScan(): void {
+    if (this.session.screen !== "attract" || this.config.start.mode !== "qr") return;
+    const url = this.config.debug.simulateScanUrl;
+    if (!isHttpUrl(url)) return;
+    this.dispatch({ type: "scan", url, sessionId: crypto.randomUUID() });
+  }
+
+  private reset(): void {
+    this.dispatch({ type: "startOver", roster: this.config.roster.default });
+  }
+
+  private goLetsGo(): void {
+    if (!this.roster || this.session.selectedIds.length === 0) return;
+    const sides = chooseSides(
+      this.session.selectedIds,
+      this.config.athletes.singleSelectionSide,
+      Math.random,
+    );
+    const transforms = this.transformsFor(sides);
+    for (const id of this.session.selectedIds) this.ensureClip(id, sides[id]);
+    this.dispatch({
+      type: "letsGo",
+      sides,
+      transforms,
+      countdownFrom: this.config.timing.countdownFrom,
+    });
+  }
+
+  private tryAgain(): void {
+    const transforms = this.transformsFor(this.session.sides);
+    for (const id of this.session.selectedIds) this.ensureClip(id, this.session.sides[id]);
+    this.frozenCamera = null;
+    this.dispatch({
+      type: "tryAgain",
+      countdownFrom: this.config.timing.countdownFrom,
+      transforms,
+    });
+  }
+
+  private transformsFor(sides: Record<string, Side>): Record<string, AthleteTransform> {
+    const transforms: Record<string, AthleteTransform> = {};
+    if (!this.roster) return transforms;
+    for (const [id, side] of Object.entries(sides)) {
+      const athlete = findAthlete(this.roster, id);
+      if (!athlete) continue;
+      const file = athlete.clips[side];
+      const size = clipSize(this.view(), file);
+      transforms[id] = defaultTransform(
+        side,
+        this.config.output.width,
+        this.config.output.height,
+        size,
+      );
+    }
+    return transforms;
+  }
+
+  private beginCountdown(): void {
+    this.walkStarted = false;
+    this.frozen = false;
+    this.capturing = false;
+    this.frozenCamera = null;
+    this.countdownStarted = performance.now();
+    void this.openPhoto();
+    for (const id of this.session.selectedIds) {
+      const clip = this.ensureClip(id, this.session.sides[id]);
+      if (!clip) continue;
+      clip.still = null;
+      clip.video.pause();
+      try {
+        clip.video.currentTime = 0;
+      } catch {
+        // The element may not have metadata yet. play() will start at 0.
+      }
+    }
+    cancelAnimationFrame(this.raf);
+    const tick = (now: number) => {
+      if (this.session.screen !== "countdown") return;
+      const elapsed = (now - this.countdownStarted) / 1000;
+      const remaining = this.config.timing.countdownFrom - elapsed;
+      if (remaining <= 0) {
+        this.capture();
+        return;
+      }
+      const display = Math.max(1, Math.ceil(remaining - 1e-6));
+      if (display !== this.session.countdown) {
+        this.session = reduceSession(this.session, { type: "countdown", seconds: display });
+        this.render();
+      }
+      const walking = display <= this.config.timing.walkInStartsAt;
+      if (walking && !this.walkStarted) {
+        this.walkStarted = true;
+        for (const clip of this.activeClips()) void clip.video.play().catch(() => undefined);
+      }
+      const freeze = remaining <= this.config.timing.freezeBeforeCaptureMs / 1000;
+      if (freeze && !this.frozen) {
+        this.frozen = true;
+        void this.holdLastFrame();
+      }
+      this.paint();
+      this.raf = requestAnimationFrame(tick);
+    };
+    this.raf = requestAnimationFrame(tick);
+  }
+
+  private capture(): void {
+    if (this.capturing || this.session.screen !== "countdown") return;
+    this.capturing = true;
+    void this.finishCapture();
+  }
+
+  private async finishCapture(): Promise<void> {
+    await this.holdLastFrame();
+    if (this.session.screen !== "countdown") return;
+    if (this.photoVideo && this.photoVideo.videoWidth > 0) {
+      const snap = document.createElement("canvas");
+      snap.width = this.photoVideo.videoWidth;
+      snap.height = this.photoVideo.videoHeight;
+      snap.getContext("2d")?.drawImage(this.photoVideo, 0, 0);
+      this.frozenCamera = snap;
+    }
+    this.pauseClips();
+    this.session = reduceSession(this.session, { type: "flash" });
+    this.flashOpacity = 0.92;
+    this.render();
+    const started = performance.now();
+    const fade = (now: number) => {
+      const t = (now - started) / this.config.timing.flashMs;
+      this.flashOpacity = Math.max(0, 0.92 * (1 - t));
+      const flash = this.chrome.querySelector<HTMLElement>(".flash");
+      if (flash) flash.style.opacity = String(this.flashOpacity);
+      this.paint();
+      if (t < 1) requestAnimationFrame(fade);
+      else this.dispatch({ type: "flashDone" });
+    };
+    requestAnimationFrame(fade);
+  }
+
+  private paint(): void {
+    const background = this.backgroundLayer();
+    const athletes = this.athleteLayers();
+    this.compositor.draw(background, athletes);
+  }
+
+  private backgroundLayer(): BackgroundLayer | null {
+    if (this.frozenCamera) {
+      return {
+        source: this.frozenCamera,
+        mirror: Boolean(this.config.cameras.photo.mirrorPreview),
+        width: this.frozenCamera.width,
+        height: this.frozenCamera.height,
+        fit: "cover",
+      };
+    }
+    if (this.photoVideo && this.photoVideo.videoWidth > 0) {
+      return {
+        source: this.photoVideo,
+        mirror: Boolean(this.config.cameras.photo.mirrorPreview),
+        width: this.photoVideo.videoWidth,
+        height: this.photoVideo.videoHeight,
+        fit: "cover",
+      };
+    }
+    if (this.guestImage) {
+      return {
+        source: this.guestImage,
+        mirror: false,
+        width: this.guestImage.naturalWidth,
+        height: this.guestImage.naturalHeight,
+        fit: "contain",
+      };
+    }
+    return null;
+  }
+
+  private athleteLayers(): AthleteLayer[] {
+    if (!this.roster) return [];
+    const selected = this.session.selectedAdjustId;
+    return this.session.selectedIds.flatMap((id) => {
+      const side = this.session.sides[id];
+      const transform = this.session.transforms[id];
+      const clip = this.clips.get(this.clipKey(id, side));
+      if (!side || !transform || !clip) return [];
+      const holding = this.session.screen === "adjust" || this.session.screen === "preview" || this.session.screen === "flash";
+      const source = holding && clip.still
+        ? clip.still
+        : clip.video.readyState >= 2
+          ? clip.video
+          : clip.poster;
+      if (!source) return [];
+      const adjusting = this.session.screen === "adjust";
+      return [{
+        source,
+        layout: clip.layout,
+        transform,
+        clipWidth: clip.width,
+        clipHeight: clip.height,
+        gray: adjusting && selected !== id,
+        outline: adjusting && selected === id,
+      }];
+    });
+  }
+
+  private activeClips(): LoadedClip[] {
+    return this.session.selectedIds
+      .map((id) => this.clips.get(this.clipKey(id, this.session.sides[id])))
+      .filter((clip): clip is LoadedClip => Boolean(clip));
+  }
+
+  private pauseClips(): void {
+    for (const clip of this.activeClips()) clip.video.pause();
+  }
+
+  /** Park every selected clip on its last frame, which is the pose held for the still. */
+  private async holdLastFrame(): Promise<void> {
+    const waits = this.activeClips().map((clip) => this.parkOnLastFrame(clip));
+    if (waits.length === 0) return;
+    await Promise.all(waits);
+    this.paint();
+  }
+
+  private parkOnLastFrame(clip: LoadedClip): Promise<void> {
+    const video = clip.video;
+    if (!Number.isFinite(video.duration) || video.duration <= 0 || video.currentTime >= video.duration - 0.08) {
+      video.pause();
+      clip.still = snapshotVideo(video);
+      return Promise.resolve();
+    }
+    const target = Math.max(0, video.duration - 0.05);
+    const canSeek = video.seekable.length > 0 && video.seekable.end(video.seekable.length - 1) >= target;
+    if (canSeek) {
+      return new Promise((resolve) => {
+        let settled = false;
+        const finish = () => {
+          if (settled) return;
+          settled = true;
+          video.removeEventListener("seeked", onSeeked);
+          video.pause();
+          clip.still = snapshotVideo(video);
+          resolve();
+        };
+        const onSeeked = () => {
+          // The decoded frame lags the seeked event by a paint.
+          requestAnimationFrame(() => requestAnimationFrame(finish));
+        };
+        video.addEventListener("seeked", onSeeked);
+        window.setTimeout(finish, 700);
+        try {
+          video.currentTime = target;
+        } catch {
+          finish();
+        }
+      });
+    }
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        video.removeEventListener("ended", finish);
+        video.pause();
+        clip.still = snapshotVideo(video);
+        resolve();
+      };
+      video.addEventListener("ended", finish);
+      video.playbackRate = 16;
+      void video.play().catch(() => finish());
+      window.setTimeout(finish, 1200);
+    });
+  }
+
+  private clipKey(id: string, side: Side | undefined): string {
+    return `${id}:${side ?? ""}:${this.preferWebm ? "webm" : "mp4"}`;
+  }
+
+  private ensureClip(id: string, side: Side | undefined): LoadedClip | null {
+    if (!this.roster || !side) return null;
+    const key = this.clipKey(id, side);
+    const existing = this.clips.get(key);
+    if (existing) return existing;
+    const athlete = findAthlete(this.roster, id);
+    if (!athlete) return null;
+    const webm = side === "left" ? athlete.clips.leftWebm : athlete.clips.rightWebm;
+    const mp4 = athlete.clips[side];
+    const file = this.preferWebm && webm ? webm : mp4;
+    const meta = this.roster.clipMeta[file];
+    const layout: AlphaLayout = meta?.layout === "vp9-alpha" ? "vp9-alpha" : "stacked-alpha";
+    const video = document.createElement("video");
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = "auto";
+    video.width = meta?.width ?? 360;
+    video.height = (meta?.height ?? 640) * (layout === "stacked-alpha" ? 2 : 1);
+    video.src = assetUrl(this.paths, file);
+    const poster = document.createElement("img");
+    poster.src = assetUrl(this.paths, file.replace(/\.mp4$|\.webm$/, ".png"));
+    const clip: LoadedClip = {
+      video,
+      poster,
+      still: null,
+      layout,
+      file,
+      width: meta?.width ?? 360,
+      height: meta?.height ?? 640,
+    };
+    const reveal = () => {
+      const holding = this.session.screen === "adjust" || this.session.screen === "preview" || this.session.screen === "flash";
+      if (holding && video.duration && video.currentTime < 0.2) {
+        try {
+          video.currentTime = Math.max(0, video.duration - 0.05);
+        } catch {
+          // Seeking can throw before the media is seekable.
+        }
+      }
+      if (this.session.screen !== "attract" && this.session.screen !== "pick" && this.session.screen !== "thanks") {
+        this.paint();
+      }
+    };
+    video.addEventListener("loadeddata", reveal);
+    poster.addEventListener("load", reveal);
+    video.addEventListener("error", () => {
+      if (webm && video.src.indexOf(webm) === -1) {
+        clip.layout = "vp9-alpha";
+        video.src = assetUrl(this.paths, webm);
+      }
+    });
+    video.load();
+    this.mediaPool.append(video, poster);
+    this.clips.set(key, clip);
+    return clip;
+  }
+
+  private prewarmSelected(): void {
+    for (const id of this.session.selectedIds) {
+      this.ensureClip(id, "left");
+      this.ensureClip(id, "right");
+    }
+  }
+
+  private async refreshDevices(): Promise<void> {
+    if (!navigator.mediaDevices?.enumerateDevices) return;
+    try {
+      const listed = await navigator.mediaDevices.enumerateDevices();
+      this.devices = listed
+        .filter((device) => device.kind === "videoinput")
+        .map((device) => ({ deviceId: device.deviceId, label: device.label, kind: device.kind }));
+    } catch (error) {
+      console.warn("enumerateDevices failed", error);
+    }
+  }
+
+  private async syncAttractCamera(): Promise<void> {
+    this.stopQr();
+    if (this.config.start.mode !== "qr" || this.session.screen !== "attract") return;
+    await this.refreshDevices();
+    const photoPick = matchCamera({
+      devices: this.devices,
+      listed: this.paths.cameras.cameras,
+      role: this.config.cameras.photo,
+      onMissing: this.config.cameras.onMissing,
+      usedIds: new Set(),
+      errorCode: "CAM-PHOTO-01",
+    });
+    const used = new Set<string>();
+    if (photoPick.deviceId) used.add(photoPick.deviceId);
+    const qrPick = matchCamera({
+      devices: this.devices,
+      listed: this.paths.cameras.cameras,
+      role: this.config.cameras.qr,
+      onMissing: this.config.cameras.onMissing,
+      usedIds: used,
+      errorCode: "CAM-QR-01",
+    });
+    // A single webcam belongs to the photo. The side well stays blank.
+    if (!qrPick.deviceId || qrPick.deviceId === photoPick.deviceId) {
+      this.qrError = qrPick.error ?? "CAM-QR-01  Side camera not found";
+      this.render();
+      return;
+    }
+    this.qrError = qrPick.error;
+    const video = await openStream(qrPick.deviceId, this.config.cameras.qr);
+    if (!video) {
+      this.qrError = "CAM-QR-01  Side camera not found";
+      this.render();
+      return;
+    }
+    this.qrVideo = video;
+    this.qrError = null;
+    this.render();
+    void this.scanLoop();
+  }
+
+  private mountQrVideo(): void {
+    const well = this.chrome.querySelector("#qr-well");
+    if (well && this.qrVideo) well.appendChild(this.qrVideo);
+  }
+
+  private async scanLoop(): Promise<void> {
+    const reader = await getQrReader();
+    const interval = this.config.cameras.qr.scanIntervalMs ?? 150;
+    const tick = async () => {
+      if (this.session.screen !== "attract" || !this.qrVideo || !reader) return;
+      const frame = grabFrame(this.qrVideo);
+      if (frame) {
+        const url = await reader(frame).catch(() => null);
+        if (url && this.session.screen === "attract") {
+          this.dispatch({ type: "scan", url, sessionId: crypto.randomUUID() });
+          return;
+        }
+      }
+      this.qrTimer = window.setTimeout(() => void tick(), interval);
+    };
+    this.qrTimer = window.setTimeout(() => void tick(), interval);
+  }
+
+  private async openPhoto(): Promise<void> {
+    if (this.photoVideo) return;
+    await this.refreshDevices();
+    const pick = matchCamera({
+      devices: this.devices,
+      listed: this.paths.cameras.cameras,
+      role: this.config.cameras.photo,
+      onMissing: this.config.cameras.onMissing,
+      usedIds: new Set(this.qrVideo?.srcObject ? [] : []),
+      errorCode: "CAM-PHOTO-01",
+    });
+    if (!pick.deviceId && this.config.cameras.onMissing === "error" && pick.error) {
+      this.photoError = pick.error;
+      this.render();
+      return;
+    }
+    const video = await openStream(pick.deviceId, this.config.cameras.photo);
+    if (!video) {
+      this.photoError = "CAM-PHOTO-01  Photo camera not found";
+      this.render();
+      return;
+    }
+    this.photoError = null;
+    this.photoVideo = video;
+    this.render();
+  }
+
+  private stopPhoto(): void {
+    stopStream(this.photoVideo);
+    this.photoVideo = null;
+  }
+
+  private stopQr(): void {
+    window.clearTimeout(this.qrTimer);
+    stopStream(this.qrVideo);
+    this.qrVideo = null;
+  }
+
+  private async send(): Promise<void> {
+    if (this.sending || this.session.screen !== "preview") return;
+    this.sending = true;
+    try {
+      this.paint();
+      if (this.config.start.mode === "touch") {
+        this.uploadStatus = "discarded (touch mode)";
+        this.dispatch({ type: "send" });
+        return;
+      }
+      const blob = await canvasToJpeg(
+        this.canvas,
+        this.config.output.width,
+        this.config.output.height,
+        this.frameImage,
+        this.config.output.quality,
+      );
+      const endpoint = uploadEndpoint(this.config.uploader.baseUrl, this.config.uploader.uploadPath);
+      const meta = {
+        participantUrl: this.session.participantUrl ?? "",
+        sessionId: this.session.sessionId,
+        capturedAt: new Date().toISOString(),
+        athletes: [...this.session.selectedIds],
+        roster: this.session.roster,
+      };
+      const result = isTauri()
+        ? await invoke<UploadResult>("upload_photo", {
+            request: {
+              endpoint,
+              image: Array.from(new Uint8Array(await blob.arrayBuffer())),
+              timeoutMs: this.config.uploader.requestTimeoutMs,
+              ...uploadFields(meta),
+            },
+          })
+        : await postPhoto(endpoint, blob, meta, this.config.uploader.requestTimeoutMs);
+      this.uploadStatus = result.ok
+        ? `accepted ${result.status}`
+        : `failed ${result.error ?? result.status} (continuing)`;
+      this.dispatch({ type: "send" });
+    } catch (error) {
+      this.uploadStatus = `failed ${error instanceof Error ? error.message : String(error)} (continuing)`;
+      this.dispatch({ type: "send" });
+    } finally {
+      this.sending = false;
+    }
+  }
+
+  private armIdle(): void {
+    window.clearTimeout(this.idleTimer);
+    window.clearTimeout(this.warningTimer);
+    this.showStillThere = false;
+    const timeout = idleTimeoutMs(this.session.screen, this.config);
+    if (timeout === null) return;
+    const warningAt = stillThereMs(this.session.screen, this.config);
+    if (warningAt !== null) {
+      this.warningTimer = window.setTimeout(() => {
+        this.showStillThere = true;
+        this.render();
+      }, warningAt);
+    }
+    this.idleTimer = window.setTimeout(() => {
+      this.dispatch({ type: "idle", roster: this.config.roster.default });
+    }, timeout);
+  }
+
+  private armThanks(): void {
+    window.clearTimeout(this.thanksTimer);
+    const timeout = thanksTimeoutMs(this.config);
+    this.thanksTimer = window.setTimeout(() => {
+      this.dispatch({ type: "thanksDone", roster: this.config.roster.default });
+    }, timeout);
+  }
+
+  private outputPoint(event: PointerEvent): PointerPoint {
+    const rect = this.stage.getBoundingClientRect();
+    const x = ((event.clientX - rect.left) / rect.width) * this.config.output.width;
+    const y = ((event.clientY - rect.top) / rect.height) * this.config.output.height;
+    return { x, y };
+  }
+
+  private onPointerDown(event: PointerEvent): void {
+    if (this.session.screen !== "adjust") return;
+    if ((event.target as HTMLElement).closest("button")) return;
+    const point = this.outputPoint(event);
+    this.pointers.set(event.pointerId, point);
+    this.stage.setPointerCapture(event.pointerId);
+    const hit = this.athleteAt(point.x, point.y);
+    if (hit) {
+      this.session = reduceSession(this.session, { type: "selectAdjust", id: hit });
+      this.drag = { id: hit, lastX: point.x, lastY: point.y };
+      this.render();
+    }
+    if (this.pointers.size === 2 && this.config.features.multitouchAdjust && this.session.selectedAdjustId) {
+      const [a, b] = [...this.pointers.values()];
+      this.pinch = {
+        id: this.session.selectedAdjustId,
+        startDist: Math.hypot(a.x - b.x, a.y - b.y),
+        startScale: this.session.transforms[this.session.selectedAdjustId]?.scale ?? 1,
+      };
+    }
+  }
+
+  private onPointerMove(event: PointerEvent): void {
+    if (!this.pointers.has(event.pointerId)) return;
+    const point = this.outputPoint(event);
+    this.pointers.set(event.pointerId, point);
+    if (this.pinch && this.pointers.size >= 2) {
+      const [a, b] = [...this.pointers.values()];
+      const dist = Math.hypot(a.x - b.x, a.y - b.y);
+      const current = this.session.transforms[this.pinch.id];
+      if (!current || this.pinch.startDist <= 0) return;
+      const next = clampTransform(
+        { ...current, scale: this.pinch.startScale * (dist / this.pinch.startDist) },
+        this.config.output.width,
+        this.config.output.height,
+      );
+      this.session = reduceSession(this.session, { type: "setTransform", id: this.pinch.id, transform: next });
+      this.render();
+      this.paint();
+      return;
+    }
+    if (!this.drag || this.pointers.size !== 1) return;
+    const current = this.session.transforms[this.drag.id];
+    if (!current) return;
+    const next = clampTransform(
+      {
+        ...current,
+        x: current.x + (point.x - this.drag.lastX),
+        y: current.y + (point.y - this.drag.lastY),
+      },
+      this.config.output.width,
+      this.config.output.height,
+    );
+    this.drag.lastX = point.x;
+    this.drag.lastY = point.y;
+    this.session = reduceSession(this.session, { type: "setTransform", id: this.drag.id, transform: next });
+    this.render();
+    this.paint();
+  }
+
+  private onPointerUp(event: PointerEvent): void {
+    this.pointers.delete(event.pointerId);
+    if (this.pointers.size < 2) this.pinch = null;
+    if (this.pointers.size === 0) this.drag = null;
+  }
+
+  private athleteAt(x: number, y: number): string | null {
+    if (!this.roster) return null;
+    const ordered = [...this.session.selectedIds].reverse();
+    for (const id of ordered) {
+      const side = this.session.sides[id];
+      const transform = this.session.transforms[id];
+      const athlete = findAthlete(this.roster, id);
+      if (!side || !transform || !athlete) continue;
+      const size = clipSize(this.view(), athlete.clips[side]);
+      if (hitTest(x, y, transform, size)) return id;
+    }
+    return null;
+  }
+
+  private nudge(dx: number, dy: number): void {
+    const id = this.session.selectedAdjustId;
+    if (!id) return;
+    const current = this.session.transforms[id];
+    if (!current) return;
+    const next = clampTransform(
+      { ...current, x: current.x + dx, y: current.y + dy },
+      this.config.output.width,
+      this.config.output.height,
+    );
+    this.session = reduceSession(this.session, { type: "setTransform", id, transform: next });
+    this.render();
+    this.paint();
+  }
+
+  private nudgeScale(direction: number): void {
+    const id = this.session.selectedAdjustId;
+    if (!id) return;
+    const current = this.session.transforms[id];
+    if (!current) return;
+    const next = clampTransform(
+      { ...current, scale: current.scale * (direction > 0 ? 1.08 : 1 / 1.08) },
+      this.config.output.width,
+      this.config.output.height,
+    );
+    this.session = reduceSession(this.session, { type: "setTransform", id, transform: next });
+    this.render();
+    this.paint();
+  }
+
+  private cycleAthlete(): void {
+    const ids = this.session.selectedIds;
+    if (ids.length === 0) return;
+    const index = Math.max(0, ids.indexOf(this.session.selectedAdjustId ?? ids[0]));
+    const next = ids[(index + 1) % ids.length];
+    this.session = reduceSession(this.session, { type: "selectAdjust", id: next });
+    this.render();
+    this.paint();
+  }
+}
+
+function snapshotVideo(video: HTMLVideoElement): HTMLCanvasElement | null {
+  if (video.videoWidth === 0 || video.videoHeight === 0) return null;
+  const canvas = document.createElement("canvas");
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+  ctx.drawImage(video, 0, 0);
+  return canvas;
+}
+
+async function openStream(
+  deviceId: string | null,
+  role: AppConfig["cameras"]["photo"],
+): Promise<HTMLVideoElement | null> {
+  if (!navigator.mediaDevices?.getUserMedia) return null;
+  const videoConstraints = (exact: boolean): MediaTrackConstraints => {
+    const video: MediaTrackConstraints = {
+      width: { ideal: role.width },
+      height: { ideal: role.height },
+      frameRate: { ideal: role.fps },
+    };
+    if (deviceId) video.deviceId = exact ? { exact: deviceId } : deviceId;
+    return video;
+  };
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: videoConstraints(true) });
+    return attach(stream);
+  } catch {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: videoConstraints(false) });
+      return attach(stream);
+    } catch {
+      return null;
+    }
+  }
+}
+
+async function attach(stream: MediaStream): Promise<HTMLVideoElement> {
+  const video = document.createElement("video");
+  video.muted = true;
+  video.playsInline = true;
+  video.autoplay = true;
+  video.srcObject = stream;
+  await video.play().catch(() => undefined);
+  return video;
+}
+
+function stopStream(video: HTMLVideoElement | null): void {
+  const stream = video?.srcObject;
+  if (stream instanceof MediaStream) {
+    for (const track of stream.getTracks()) track.stop();
+  }
+  if (video) video.srcObject = null;
+}
+
+function loadImage(url: string): Promise<HTMLImageElement | null> {
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => resolve(null);
+    image.src = url;
+  });
+}

@@ -1,0 +1,590 @@
+{
+  "version": 1,
+  "note": "Synthetic placeholder roster. Names, numbers, and portraits are fictional. Replace this file and the headshots/athletes folders with licensed assets.",
+  "clipMeta": {
+    "athletes/left_dribble.mp4": {
+      "layout": "stacked-alpha",
+      "width": 360,
+      "height": 640,
+      "fps": 12,
+      "durationSeconds": 4.0
+    },
+    "athletes/left_stand.mp4": {
+      "layout": "stacked-alpha",
+      "width": 360,
+      "height": 640,
+      "fps": 12,
+      "durationSeconds": 4.0
+    },
+    "athletes/left_crossover.mp4": {
+      "layout": "stacked-alpha",
+      "width": 360,
+      "height": 640,
+      "fps": 12,
+      "durationSeconds": 4.0
+    },
+    "athletes/right_dribble.mp4": {
+      "layout": "stacked-alpha",
+      "width": 360,
+      "height": 640,
+      "fps": 12,
+      "durationSeconds": 4.0
+    },
+    "athletes/right_stand.mp4": {
+      "layout": "stacked-alpha",
+      "width": 360,
+      "height": 640,
+      "fps": 12,
+      "durationSeconds": 4.0
+    },
+    "athletes/right_crossover.mp4": {
+      "layout": "stacked-alpha",
+      "width": 360,
+      "height": 640,
+      "fps": 12,
+      "durationSeconds": 4.0
+    },
+    "athletes/left_dribble.webm": {
+      "layout": "vp9-alpha",
+      "width": 360,
+      "height": 640,
+      "fps": 12,
+      "durationSeconds": 4.0
+    },
+    "athletes/right_dribble.webm": {
+      "layout": "vp9-alpha",
+      "width": 360,
+      "height": 640,
+      "fps": 12,
+      "durationSeconds": 4.0
+    }
+  },
+  "teams": {
+    "mens": [
+      {
+        "id": "m01",
+        "firstName": "CASEY",
+        "lastName": "ALDEN",
+        "jersey": 4,
+        "team": "mens",
+        "headshot": "headshots/m01.png",
+        "placeholder": true,
+        "clips": {
+          "left": "athletes/left_dribble.mp4",
+          "right": "athletes/right_dribble.mp4",
+          "leftWebm": "athletes/left_dribble.webm",
+          "rightWebm": "athletes/right_dribble.webm"
+        }
+      },
+      {
+        "id": "m02",
+        "firstName": "MARCUS",
+        "lastName": "BELL",
+        "jersey": 11,
+        "team": "mens",
+        "headshot": "headshots/m02.png",
+        "placeholder": true,
+        "clips": {
+          "left": "athletes/left_stand.mp4",
+          "right": "athletes/right_stand.mp4"
+        }
+      },
+      {
+        "id": "m03",
+        "firstName": "ANDRE",
+        "lastName": "COLE",
+        "jersey": 15,
+        "team": "mens",
+        "headshot": "headshots/m03.png",
+        "placeholder": true,
+        "clips": {
+          "left": "athletes/left_crossover.mp4",
+          "right": "athletes/right_crossover.mp4"
+        }
+      },
+      {
+        "id": "m04",
+        "firstName": "LUIS",
+        "lastName": "ORTEGA",
+        "jersey": 22,
+        "team": "mens",
+        "headshot": "headshots/m04.png",
+        "placeholder": true,
+        "clips": {
+          "left": "athletes/left_dribble.mp4",
+          "right": "athletes/right_dribble.mp4",
+          "leftWebm": "athletes/left_dribble.webm",
+          "rightWebm": "athletes/right_dribble.webm"
+        }
+      },
+      {
+        "id": "m05",
+        "firstName": "NOAH",
+        "lastName": "PATEL",
+        "jersey": 3,
+        "team": "mens",
+        "headshot": "headshots/m05.png",
+        "placeholder": true,
+        "clips": {
+          "left": "athletes/left_stand.mp4",
+          "right": "athletes/right_stand.mp4"
+        }
+      },
+      {
+        "id": "m06",
+        "firstName": "EVAN",
+        "lastName": "BROOKS",
+        "jersey": 8,
+        "team": "mens",
+        "headshot": "headshots/m06.png",
+        "placeholder": true,
+        "clips": {
+          "left": "athletes/left_crossover.mp4",
+          "right": "athletes/right_crossover.mp4"
+        }
+      },
+      {
+        "id": "m07",
+        "firstName": "MALIK",
+        "lastName": "REED",
+        "jersey": 24,
+        "team": "mens",
+        "headshot": "headshots/m07.png",
+        "placeholder": true,
+        "clips": {
+          "left": "athletes/left_dribble.mp4",
+          "right": "athletes/right_dribble.mp4",
+          "leftWebm": "athletes/left_dribble.webm",
+          "rightWebm": "athletes/right_dribble.webm"
+        }
+      },
+      {
+        "id": "m08",
+        "firstName": "JONAH",
+        "lastName": "KIM",
+        "jersey": 1,
+        "team": "mens",
+        "headshot": "headshots/m08.png",
+        "placeholder": true,
+        "clips": {
+          "left": "athletes/left_stand.mp4",
+          "right": "athletes/right_stand.mp4"
+        }
+      },
+      {
+        "id": "m09",
+        "firstName": "THEO",
+        "lastName": "MARSH",
+        "jersey": 32,
+        "team": "mens",
+        "headshot": "headshots/m09.png",
+        "placeholder": true,
+        "clips": {
+          "left": "athletes/left_crossover.mp4",
+          "right": "athletes/right_crossover.mp4"
+        }
+      },
+      {
+        "id": "m10",
+        "firstName": "CALEB",
+        "lastName": "NGUYEN",
+        "jersey": 5,
+        "team": "mens",
+        "headshot": "headshots/m10.png",
+        "placeholder": true,
+        "clips": {
+          "left": "athletes/left_dribble.mp4",
+          "right": "athletes/right_dribble.mp4",
+          "leftWebm": "athletes/left_dribble.webm",
+          "rightWebm": "athletes/right_dribble.webm"
+        }
+      },
+      {
+        "id": "m11",
+        "firstName": "OMAR",
+        "lastName": "HASSAN",
+        "jersey": 12,
+        "team": "mens",
+        "headshot": "headshots/m11.png",
+        "placeholder": true,
+        "clips": {
+          "left": "athletes/left_stand.mp4",
+          "right": "athletes/right_stand.mp4"
+        }
+      },
+      {
+        "id": "m12",
+        "firstName": "FELIX",
+        "lastName": "GRANT",
+        "jersey": 21,
+        "team": "mens",
+        "headshot": "headshots/m12.png",
+        "placeholder": true,
+        "clips": {
+          "left": "athletes/left_crossover.mp4",
+          "right": "athletes/right_crossover.mp4"
+        }
+      },
+      {
+        "id": "m13",
+        "firstName": "WYATT",
+        "lastName": "SHAW",
+        "jersey": 33,
+        "team": "mens",
+        "headshot": "headshots/m13.png",
+        "placeholder": true,
+        "clips": {
+          "left": "athletes/left_dribble.mp4",
+          "right": "athletes/right_dribble.mp4",
+          "leftWebm": "athletes/left_dribble.webm",
+          "rightWebm": "athletes/right_dribble.webm"
+        }
+      },
+      {
+        "id": "m14",
+        "firstName": "DIEGO",
+        "lastName": "RAMOS",
+        "jersey": 10,
+        "team": "mens",
+        "headshot": "headshots/m14.png",
+        "placeholder": true,
+        "clips": {
+          "left": "athletes/left_stand.mp4",
+          "right": "athletes/right_stand.mp4"
+        }
+      },
+      {
+        "id": "m15",
+        "firstName": "QUINN",
+        "lastName": "HARPER",
+        "jersey": 2,
+        "team": "mens",
+        "headshot": "headshots/m15.png",
+        "placeholder": true,
+        "clips": {
+          "left": "athletes/left_crossover.mp4",
+          "right": "athletes/right_crossover.mp4"
+        }
+      },
+      {
+        "id": "m16",
+        "firstName": "BLAKE",
+        "lastName": "SOTO",
+        "jersey": 23,
+        "team": "mens",
+        "headshot": "headshots/m16.png",
+        "placeholder": true,
+        "clips": {
+          "left": "athletes/left_dribble.mp4",
+          "right": "athletes/right_dribble.mp4",
+          "leftWebm": "athletes/left_dribble.webm",
+          "rightWebm": "athletes/right_dribble.webm"
+        }
+      },
+      {
+        "id": "m17",
+        "firstName": "IAN",
+        "lastName": "FOSTER",
+        "jersey": 14,
+        "team": "mens",
+        "headshot": "headshots/m17.png",
+        "placeholder": true,
+        "clips": {
+          "left": "athletes/left_stand.mp4",
+          "right": "athletes/right_stand.mp4"
+        }
+      },
+      {
+        "id": "m18",
+        "firstName": "MILES",
+        "lastName": "CHEN",
+        "jersey": 0,
+        "team": "mens",
+        "headshot": "headshots/m18.png",
+        "placeholder": true,
+        "clips": {
+          "left": "athletes/left_crossover.mp4",
+          "right": "athletes/right_crossover.mp4"
+        }
+      },
+      {
+        "id": "m19",
+        "firstName": "ROWAN",
+        "lastName": "PIKE",
+        "jersey": 25,
+        "team": "mens",
+        "headshot": "headshots/m19.png",
+        "placeholder": true,
+        "clips": {
+          "left": "athletes/left_dribble.mp4",
+          "right": "athletes/right_dribble.mp4",
+          "leftWebm": "athletes/left_dribble.webm",
+          "rightWebm": "athletes/right_dribble.webm"
+        }
+      }
+    ],
+    "womens": [
+      {
+        "id": "w01",
+        "firstName": "AVERY",
+        "lastName": "LANE",
+        "jersey": 4,
+        "team": "womens",
+        "headshot": "headshots/w01.png",
+        "placeholder": true,
+        "clips": {
+          "left": "athletes/left_dribble.mp4",
+          "right": "athletes/right_dribble.mp4",
+          "leftWebm": "athletes/left_dribble.webm",
+          "rightWebm": "athletes/right_dribble.webm"
+        }
+      },
+      {
+        "id": "w02",
+        "firstName": "MAYA",
+        "lastName": "CHEN",
+        "jersey": 11,
+        "team": "womens",
+        "headshot": "headshots/w02.png",
+        "placeholder": true,
+        "clips": {
+          "left": "athletes/left_stand.mp4",
+          "right": "athletes/right_stand.mp4"
+        }
+      },
+      {
+        "id": "w03",
+        "firstName": "SOFIA",
+        "lastName": "REYES",
+        "jersey": 15,
+        "team": "womens",
+        "headshot": "headshots/w03.png",
+        "placeholder": true,
+        "clips": {
+          "left": "athletes/left_crossover.mp4",
+          "right": "athletes/right_crossover.mp4"
+        }
+      },
+      {
+        "id": "w04",
+        "firstName": "JORDAN",
+        "lastName": "BLAKE",
+        "jersey": 22,
+        "team": "womens",
+        "headshot": "headshots/w04.png",
+        "placeholder": true,
+        "clips": {
+          "left": "athletes/left_dribble.mp4",
+          "right": "athletes/right_dribble.mp4",
+          "leftWebm": "athletes/left_dribble.webm",
+          "rightWebm": "athletes/right_dribble.webm"
+        }
+      },
+      {
+        "id": "w05",
+        "firstName": "PRIYA",
+        "lastName": "SHAH",
+        "jersey": 3,
+        "team": "womens",
+        "headshot": "headshots/w05.png",
+        "placeholder": true,
+        "clips": {
+          "left": "athletes/left_stand.mp4",
+          "right": "athletes/right_stand.mp4"
+        }
+      },
+      {
+        "id": "w06",
+        "firstName": "ELENA",
+        "lastName": "VOSS",
+        "jersey": 8,
+        "team": "womens",
+        "headshot": "headshots/w06.png",
+        "placeholder": true,
+        "clips": {
+          "left": "athletes/left_crossover.mp4",
+          "right": "athletes/right_crossover.mp4"
+        }
+      },
+      {
+        "id": "w07",
+        "firstName": "NAOMI",
+        "lastName": "BROOKS",
+        "jersey": 24,
+        "team": "womens",
+        "headshot": "headshots/w07.png",
+        "placeholder": true,
+        "clips": {
+          "left": "athletes/left_dribble.mp4",
+          "right": "athletes/right_dribble.mp4",
+          "leftWebm": "athletes/left_dribble.webm",
+          "rightWebm": "athletes/right_dribble.webm"
+        }
+      },
+      {
+        "id": "w08",
+        "firstName": "HANA",
+        "lastName": "ITO",
+        "jersey": 1,
+        "team": "womens",
+        "headshot": "headshots/w08.png",
+        "placeholder": true,
+        "clips": {
+          "left": "athletes/left_stand.mp4",
+          "right": "athletes/right_stand.mp4"
+        }
+      },
+      {
+        "id": "w09",
+        "firstName": "RILEY",
+        "lastName": "QUINN",
+        "jersey": 32,
+        "team": "womens",
+        "headshot": "headshots/w09.png",
+        "placeholder": true,
+        "clips": {
+          "left": "athletes/left_crossover.mp4",
+          "right": "athletes/right_crossover.mp4"
+        }
+      },
+      {
+        "id": "w10",
+        "firstName": "CAMILA",
+        "lastName": "ORTIZ",
+        "jersey": 5,
+        "team": "womens",
+        "headshot": "headshots/w10.png",
+        "placeholder": true,
+        "clips": {
+          "left": "athletes/left_dribble.mp4",
+          "right": "athletes/right_dribble.mp4",
+          "leftWebm": "athletes/left_dribble.webm",
+          "rightWebm": "athletes/right_dribble.webm"
+        }
+      },
+      {
+        "id": "w11",
+        "firstName": "TESS",
+        "lastName": "MORGAN",
+        "jersey": 12,
+        "team": "womens",
+        "headshot": "headshots/w11.png",
+        "placeholder": true,
+        "clips": {
+          "left": "athletes/left_stand.mp4",
+          "right": "athletes/right_stand.mp4"
+        }
+      },
+      {
+        "id": "w12",
+        "firstName": "BIANCA",
+        "lastName": "COLE",
+        "jersey": 21,
+        "team": "womens",
+        "headshot": "headshots/w12.png",
+        "placeholder": true,
+        "clips": {
+          "left": "athletes/left_crossover.mp4",
+          "right": "athletes/right_crossover.mp4"
+        }
+      },
+      {
+        "id": "w13",
+        "firstName": "GRACE",
+        "lastName": "ADEYEMI",
+        "jersey": 33,
+        "team": "womens",
+        "headshot": "headshots/w13.png",
+        "placeholder": true,
+        "clips": {
+          "left": "athletes/left_dribble.mp4",
+          "right": "athletes/right_dribble.mp4",
+          "leftWebm": "athletes/left_dribble.webm",
+          "rightWebm": "athletes/right_dribble.webm"
+        }
+      },
+      {
+        "id": "w14",
+        "firstName": "LILA",
+        "lastName": "PARK",
+        "jersey": 10,
+        "team": "womens",
+        "headshot": "headshots/w14.png",
+        "placeholder": true,
+        "clips": {
+          "left": "athletes/left_stand.mp4",
+          "right": "athletes/right_stand.mp4"
+        }
+      },
+      {
+        "id": "w15",
+        "firstName": "NORA",
+        "lastName": "SINGH",
+        "jersey": 2,
+        "team": "womens",
+        "headshot": "headshots/w15.png",
+        "placeholder": true,
+        "clips": {
+          "left": "athletes/left_crossover.mp4",
+          "right": "athletes/right_crossover.mp4"
+        }
+      },
+      {
+        "id": "w16",
+        "firstName": "PAIGE",
+        "lastName": "DONOVAN",
+        "jersey": 23,
+        "team": "womens",
+        "headshot": "headshots/w16.png",
+        "placeholder": true,
+        "clips": {
+          "left": "athletes/left_dribble.mp4",
+          "right": "athletes/right_dribble.mp4",
+          "leftWebm": "athletes/left_dribble.webm",
+          "rightWebm": "athletes/right_dribble.webm"
+        }
+      },
+      {
+        "id": "w17",
+        "firstName": "SUMMER",
+        "lastName": "ELLIS",
+        "jersey": 14,
+        "team": "womens",
+        "headshot": "headshots/w17.png",
+        "placeholder": true,
+        "clips": {
+          "left": "athletes/left_stand.mp4",
+          "right": "athletes/right_stand.mp4"
+        }
+      },
+      {
+        "id": "w18",
+        "firstName": "VALERIE",
+        "lastName": "CHO",
+        "jersey": 0,
+        "team": "womens",
+        "headshot": "headshots/w18.png",
+        "placeholder": true,
+        "clips": {
+          "left": "athletes/left_crossover.mp4",
+          "right": "athletes/right_crossover.mp4"
+        }
+      },
+      {
+        "id": "w19",
+        "firstName": "WREN",
+        "lastName": "ALVAREZ",
+        "jersey": 25,
+        "team": "womens",
+        "headshot": "headshots/w19.png",
+        "placeholder": true,
+        "clips": {
+          "left": "athletes/left_dribble.mp4",
+          "right": "athletes/right_dribble.mp4",
+          "leftWebm": "athletes/left_dribble.webm",
+          "rightWebm": "athletes/right_dribble.webm"
+        }
+      }
+    ]
+  }
+}
