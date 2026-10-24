@@ -119,7 +119,8 @@ export interface Athlete {
 export interface RosterFile {
   version: number;
   note?: string;
-  clipMeta: Record<string, ClipMeta>;
+  /** Optional. Missing entries are measured from the file; .webm is treated as VP9-alpha. */
+  clipMeta?: Record<string, ClipMeta>;
   teams: Record<RosterId, Athlete[]>;
 }
 

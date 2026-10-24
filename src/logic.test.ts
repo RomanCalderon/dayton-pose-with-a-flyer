@@ -2,7 +2,17 @@ import { describe, expect, it } from "vitest";
 import { matchCamera, pinConfigured, isHttpUrl } from "./cameras";
 import { parseConfig, stripJsonComments } from "./config";
 import { idleTimeoutMs, stillThereMs, thanksTimeoutMs } from "./idle";
-import { clampTransform, defaultTransform, hitTest, stackedSampleV } from "./placement";
+import {
+  clampTransform,
+  defaultTransform,
+  hitTest,
+  measuredColorSize,
+  resolveClipLayout,
+  resolveClipSize,
+  stackedSampleV,
+  transformForMeasuredSize,
+} from "./placement";
+import { urlIsCanvasSafe } from "./media";
 import { chooseSides, createSession, lockWordsForCountdown, reduceSession } from "./session";
 import { UPLOAD_FILENAME, uploadEndpoint, uploadFields } from "./upload";
 import { escapeHtml, headshotSlots } from "./ui";
@@ -200,6 +210,40 @@ describe("placement and upload", () => {
     const clamped = clampTransform({ x: 99999, y: -99999, scale: 9 }, 2560, 1440);
     expect(clamped.scale).toBeLessThanOrEqual(2.8);
     expect(clamped.x).toBeLessThanOrEqual(2560 * 1.2);
+  });
+
+  it("sizes a real VP9 frame when clipMeta is omitted", () => {
+    expect(resolveClipLayout("WEBM/Men/M-0-L.webm", undefined)).toBe("vp9-alpha");
+    expect(resolveClipLayout("athletes/left_dribble.mp4", undefined)).toBe("stacked-alpha");
+    expect(resolveClipLayout("athletes/left_dribble.webm", "stacked-alpha")).toBe("stacked-alpha");
+    expect(resolveClipSize(undefined, undefined)).toEqual({ width: 0, height: 0 });
+    expect(resolveClipSize({ width: 1440, height: 2160 }, { width: 10, height: 10 })).toEqual({
+      width: 1440,
+      height: 2160,
+    });
+    expect(measuredColorSize("vp9-alpha", 1440, 2160)).toEqual({ width: 1440, height: 2160 });
+    expect(measuredColorSize("stacked-alpha", 360, 1280)).toEqual({ width: 360, height: 640 });
+    const fitted = defaultTransform("left", 2560, 1440, { width: 1440, height: 2160 });
+    expect(fitted.scale * 2160).toBeCloseTo(1440 * 0.92);
+    expect(fitted.x).toBeLessThan(2560 / 2);
+    const guessed = defaultTransform("right", 2560, 1440, { width: 360, height: 640 });
+    const corrected = transformForMeasuredSize(
+      "right",
+      2560,
+      1440,
+      { width: 0, height: 0 },
+      { width: 1440, height: 2160 },
+      guessed,
+    );
+    expect(corrected.scale * 2160).toBeCloseTo(1440 * 0.92);
+    expect(corrected.x).toBeGreaterThan(2560 / 2);
+  });
+
+  it("treats asset.localhost images as unsafe for WebGL", () => {
+    const page = "http://tauri.localhost/";
+    expect(urlIsCanvasSafe("http://asset.localhost/assets/frames/takeaway_v1.png", page)).toBe(false);
+    expect(urlIsCanvasSafe("blob:http://tauri.localhost/8d0c2c9a-1", page)).toBe(true);
+    expect(urlIsCanvasSafe("http://tauri.localhost/kiosk-assets/frames/takeaway_v1.png", page)).toBe(true);
   });
 
   it("samples stacked alpha with the head at the top of the frame", () => {

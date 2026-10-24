@@ -1,6 +1,6 @@
 import { lockWordsForCountdown } from "./session";
 import type { AppConfig, Athlete, RosterFile, Session } from "./types";
-import { transformBounds } from "./placement";
+import { resolveClipSize, transformBounds, type ClipSize } from "./placement";
 
 export const STAGE_W = 3840;
 export const STAGE_H = 2160;
@@ -24,6 +24,7 @@ export interface ViewModel {
   logPath: string;
   hasPhoto: boolean;
   flashOpacity: number;
+  measuredClips: Record<string, ClipSize>;
 }
 
 export function escapeHtml(value: string): string {
@@ -390,9 +391,12 @@ export function findAthlete(roster: RosterFile, id: string): Athlete | null {
 }
 
 export function clipSize(view: ViewModel, file: string): { width: number; height: number } {
-  const meta = view.roster?.clipMeta[file];
-  return {
-    width: meta?.width ?? 360,
-    height: meta?.height ?? 640,
-  };
+  return resolveClipSize(view.roster?.clipMeta?.[file], view.measuredClips[file]);
+}
+
+/** Even-odd hole so the preview background does not cover the live composite. */
+export function previewHole(stageW: number, stageH: number, rect: { x: number; y: number; w: number; h: number }): string {
+  const right = rect.x + rect.w;
+  const bottom = rect.y + rect.h;
+  return `path(evenodd, "M0 0 H${stageW} V${stageH} H0 Z M${rect.x} ${rect.y} H${right} V${bottom} H${rect.x} Z")`;
 }

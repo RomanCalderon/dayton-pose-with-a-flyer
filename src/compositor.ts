@@ -1,3 +1,4 @@
+import { sourceIsCanvasSafe } from "./media";
 import type { AthleteTransform } from "./types";
 import type { Bounds } from "./placement";
 import { stackedSampleV } from "./placement";
@@ -238,10 +239,14 @@ export class Compositor {
       canvas.height = source.videoHeight;
       slot.drawn = false;
     }
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext("2d", { alpha: true });
     if (!ctx) return slot.drawn ? canvas : null;
+    if (!sourceIsCanvasSafe(source)) {
+      this.report(new Error(`blocked cross-origin video ${source.currentSrc || source.src}`));
+      return null;
+    }
     try {
-      ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
+      paintVideoFrame(ctx, source, canvas.width, canvas.height);
       slot.drawn = true;
       return canvas;
     } catch (error) {
@@ -255,6 +260,11 @@ export class Compositor {
     if (!gl || gl.isContextLost()) return null;
     const upload = this.frameForUpload(source);
     if (!upload) return null;
+    if (!sourceIsCanvasSafe(upload)) {
+      const name = upload instanceof HTMLImageElement ? upload.currentSrc || upload.src : "image";
+      this.report(new Error(`blocked cross-origin image ${name}`));
+      return null;
+    }
     try {
       const existing = this.textures.get(upload);
       if (existing) {
@@ -476,16 +486,39 @@ function sourceHeight(source: CanvasImageSource): number {
   return 0;
 }
 
+/**
+ * Transparent pixels must replace the previous frame. source-over leaves the old
+ * athlete wherever the new frame is clear, which is the walk-in smear on VP9-alpha.
+ * Stacked files are opaque, and clearing them is the same full replace.
+ */
+export function paintVideoFrame(ctx: CanvasRenderingContext2D, source: CanvasImageSource, width: number, height: number): void {
+  ctx.save();
+  ctx.globalCompositeOperation = "source-over";
+  ctx.clearRect(0, 0, width, height);
+  ctx.drawImage(source, 0, 0, width, height);
+  ctx.restore();
+}
+
 export async function canvasToJpeg(source: CanvasImageSource, width: number, height: number, frame: CanvasImageSource | null, quality: number): Promise<Blob> {
   const canvas = document.createElement("canvas");
   canvas.width = width;
   canvas.height = height;
-  const ctx = canvas.getContext("2d");
+  const ctx = canvas.getContext("2d", { alpha: true });
   if (!ctx) throw new Error("Could not create the output canvas");
   ctx.fillStyle = "#000";
   ctx.fillRect(0, 0, width, height);
-  if (!copyWebGL(ctx, source, width, height)) ctx.drawImage(source, 0, 0, width, height);
-  if (frame) ctx.drawImage(frame, 0, 0, width, height);
+  try {
+    if (!copyWebGL(ctx, source, width, height)) ctx.drawImage(source, 0, 0, width, height);
+  } catch {
+    // A tainted layer must not discard the rest of the capture.
+  }
+  if (frame && sourceIsCanvasSafe(frame)) {
+    try {
+      ctx.drawImage(frame, 0, 0, width, height);
+    } catch {
+      // The photo still encodes when the frame PNG is cross-origin.
+    }
+  }
   const blob = await new Promise<Blob | null>((resolve) => {
     canvas.toBlob(resolve, "image/jpeg", quality);
   });

@@ -44,8 +44,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.ref_type == 'tag' && github.ref_name || 'v0.1.1-prototype' }}
-          releaseName: Pose with a Flyer ${{ github.ref_type == 'tag' && github.ref_name || 'v0.1.1-prototype' }}
+          tagName: ${{ github.ref_type == 'tag' && github.ref_name || 'v0.1.2-prototype' }}
+          releaseName: Pose with a Flyer ${{ github.ref_type == 'tag' && github.ref_name || 'v0.1.2-prototype' }}
           releaseBody: |
             Prototype of the Pose with a Flyer kiosk.
 

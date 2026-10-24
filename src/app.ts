@@ -1,11 +1,17 @@
 import { countdownDue, countdownRemainingMs, countdownShownSecond } from "./clock";
-import { defaultTransform } from "./placement";
-import { hitTest, clampTransform } from "./placement";
+import {
+  clampTransform,
+  defaultTransform,
+  hitTest,
+  measuredColorSize,
+  resolveClipLayout,
+  transformForMeasuredSize,
+} from "./placement";
 import { matchCamera } from "./cameras";
 import { isHttpUrl } from "./cameras";
 import { idleTimeoutMs, stillThereMs, thanksTimeoutMs } from "./idle";
 import { formatLogLine, remember } from "./log";
-import { fetchAssetBlob, mediaIsSeekable } from "./media";
+import { fetchAssetBlob, isImagePath, mediaIsSeekable, sourceIsCanvasSafe, urlIsCanvasSafe } from "./media";
 import { invoke } from "@tauri-apps/api/core";
 import { assetUrl, isTauri, loadRuntime, setFullscreen, type RuntimePaths } from "./platform";
 import { getQrReader, grabFrame } from "./qr";
@@ -26,6 +32,8 @@ import {
   clipSize,
   escapeHtml,
   findAthlete,
+  PHOTO_RECT,
+  previewHole,
   renderChrome,
   renderDebug,
   type ViewModel,
@@ -39,6 +47,8 @@ interface PointerPoint {
 type ClipSource = "loading" | "blob" | "direct" | "poster";
 
 interface LoadedClip {
+  id: string;
+  side: Side;
   video: HTMLVideoElement;
   poster: HTMLImageElement | null;
   /** Stacked or straight frame copied out of the video so later paints cannot go blank. */
@@ -52,6 +62,7 @@ interface LoadedClip {
   /** Bumped to ignore a blob fetch that finished after the clip was replaced. */
   generation: number;
   triedWebm: boolean;
+  sizedFromMeta: boolean;
 }
 
 export class KioskApp {
@@ -72,6 +83,10 @@ export class KioskApp {
   private guestImage: HTMLImageElement | null = null;
   private frameImage: HTMLImageElement | null = null;
   private clips = new Map<string, LoadedClip>();
+  private measuredClips = new Map<string, { width: number; height: number }>();
+  private blobbedAssets = new Map<string, string>();
+  private localAssets = new Map<string, Promise<string | null>>();
+  private assetRefresh = 0;
   private qrError: string | null = null;
   private photoError: string | null = null;
   private uploadStatus = "";
@@ -166,8 +181,12 @@ export class KioskApp {
   }
 
   private async loadStillImages(): Promise<void> {
-    this.guestImage = await loadImage(assetUrl(this.paths, "placeholders/guest.png"));
-    this.frameImage = await loadImage(assetUrl(this.paths, this.config.assets.takeawayFrame));
+    const [guest, frame] = await Promise.all([
+      this.loadSafeImage("placeholders/guest.png"),
+      this.loadSafeImage(this.config.assets.takeawayFrame),
+    ]);
+    this.guestImage = guest;
+    this.frameImage = frame;
   }
 
   private applyDebugQuery(): void {
@@ -177,6 +196,10 @@ export class KioskApp {
       this.config = { ...this.config, start: { mode } };
     }
     if (params.get("paintThrows") === "1") this.paintThrows = true;
+    const assets = params.get("assets");
+    if (assets && /^https?:\/\//i.test(assets)) {
+      this.paths = { ...this.paths, assetRoot: assets.replace(/\/$/, "") };
+    }
   }
 
   private applyFixture(): void {
@@ -248,6 +271,7 @@ export class KioskApp {
     const mode = canvasMode(this.session.screen);
     this.canvas.className = `mode-${mode}`;
     this.mountQrVideo();
+    this.punchPreviewHole();
     this.renderDebugPanel();
     this.renderStatusStrip();
     if (mode !== "hidden") {
@@ -280,7 +304,7 @@ export class KioskApp {
       config: this.config,
       session: this.session,
       roster: this.roster,
-      assetUrl: (relative) => assetUrl(this.paths, relative),
+      assetUrl: (relative) => this.displayAssetUrl(relative),
       qrError: this.qrError,
       photoError: this.photoError,
       showStillThere: this.showStillThere,
@@ -293,6 +317,7 @@ export class KioskApp {
       logPath: this.logPath || this.paths?.logPath || "",
       hasPhoto: Boolean(this.photoVideo || this.frozenCamera),
       flashOpacity: this.flashOpacity,
+      measuredClips: Object.fromEntries(this.measuredClips),
     };
   }
 
@@ -664,12 +689,13 @@ export class KioskApp {
       const clip = this.clips.get(this.clipKey(id, side));
       if (!side || !transform || !clip) return [];
       const holding = this.session.screen === "adjust" || this.session.screen === "preview" || this.session.screen === "flash";
+      const poster = clip.poster && sourceIsCanvasSafe(clip.poster) ? clip.poster : null;
       const source = holding && clip.still
         ? clip.still
-        : clip.video.readyState >= 2
+        : clip.video.readyState >= 2 && sourceIsCanvasSafe(clip.video)
           ? clip.video
-          : clip.poster;
-      if (!source) return [];
+          : poster;
+      if (!source || clip.width <= 0 || clip.height <= 0) return [];
       const adjusting = this.session.screen === "adjust";
       return [{
         source,
@@ -768,30 +794,36 @@ export class KioskApp {
     const webm = side === "left" ? athlete.clips.leftWebm : athlete.clips.rightWebm;
     const mp4 = athlete.clips[side];
     const file = this.preferWebm && webm ? webm : mp4;
-    const meta = this.roster.clipMeta[file];
-    const layout: AlphaLayout = meta?.layout === "vp9-alpha" ? "vp9-alpha" : "stacked-alpha";
+    const meta = this.roster.clipMeta?.[file];
+    const layout: AlphaLayout = resolveClipLayout(file, meta?.layout);
+    const sizedFromMeta = Boolean(meta?.width && meta?.height);
+    const measured = this.measuredClips.get(file);
     const video = document.createElement("video");
     video.muted = true;
     video.playsInline = true;
     video.preload = "auto";
-    video.width = meta?.width ?? 360;
-    video.height = (meta?.height ?? 640) * (layout === "stacked-alpha" ? 2 : 1);
+    video.width = meta?.width ?? measured?.width ?? 360;
+    video.height = (meta?.height ?? measured?.height ?? 640) * (layout === "stacked-alpha" ? 2 : 1);
     const poster = document.createElement("img");
-    poster.src = assetUrl(this.paths, posterPath(file));
     const clip: LoadedClip = {
+      id,
+      side,
       video,
       poster,
       still: null,
       layout,
       file,
-      width: meta?.width ?? 360,
-      height: meta?.height ?? 640,
+      width: sizedFromMeta ? meta!.width : measured?.width ?? 0,
+      height: sizedFromMeta ? meta!.height : measured?.height ?? 0,
       sourceNote: "loading",
       blobUrl: null,
       generation: 1,
       triedWebm: Boolean(this.preferWebm && webm),
+      sizedFromMeta,
     };
+    video.addEventListener("loadedmetadata", () => this.noteClipSize(clip));
     video.addEventListener("loadeddata", () => {
+      this.noteClipSize(clip);
       this.logLine(`clip ready ${clip.file} readyState=${video.readyState} ${video.videoWidth}x${video.videoHeight} ${clip.sourceNote}`);
       this.revealClip(clip);
     });
@@ -810,8 +842,35 @@ export class KioskApp {
     poster.addEventListener("load", () => this.revealClip(clip));
     this.mediaPool.append(video, poster);
     this.clips.set(key, clip);
+    void this.attachPoster(clip, posterPath(file));
     void this.attachClipVideo(clip, file, clip.generation);
     return clip;
+  }
+
+  private noteClipSize(clip: LoadedClip): void {
+    const size = measuredColorSize(clip.layout, clip.video.videoWidth, clip.video.videoHeight);
+    if (size.height <= 0) return;
+    this.measuredClips.set(clip.file, size);
+    if (clip.sizedFromMeta) return;
+    if (clip.width === size.width && clip.height === size.height) return;
+    const previous = { width: clip.width, height: clip.height };
+    clip.width = size.width;
+    clip.height = size.height;
+    if (this.session.sides[clip.id] !== clip.side) return;
+    const current = this.session.transforms[clip.id];
+    if (!current) return;
+    const next = transformForMeasuredSize(
+      clip.side,
+      this.config.output.width,
+      this.config.output.height,
+      previous,
+      size,
+      current,
+    );
+    this.session = reduceSession(this.session, { type: "setTransform", id: clip.id, transform: next });
+    if (this.session.screen !== "attract" && this.session.screen !== "pick" && this.session.screen !== "thanks") {
+      this.render();
+    }
   }
 
   private async attachClipVideo(clip: LoadedClip, file: string, generation: number): Promise<void> {
@@ -1243,6 +1302,70 @@ export class KioskApp {
     this.safePaint();
   }
 
+  private punchPreviewHole(): void {
+    if (this.session.screen !== "preview") return;
+    const bg = this.chrome.querySelector(".bg");
+    if (!(bg instanceof HTMLElement)) return;
+    bg.style.clipPath = previewHole(STAGE_W, STAGE_H, PHOTO_RECT);
+  }
+
+  private displayAssetUrl(relative: string): string {
+    const key = relative.replace(/^[/\\]+/, "");
+    const cached = this.blobbedAssets.get(key);
+    if (cached) return cached;
+    const direct = assetUrl(this.paths, key);
+    if (isImagePath(key) && !urlIsCanvasSafe(direct)) {
+      void this.localAssetUrl(key).then((url) => {
+        if (url && url !== direct) this.queueAssetRefresh();
+      });
+    }
+    return direct;
+  }
+
+  private queueAssetRefresh(): void {
+    window.clearTimeout(this.assetRefresh);
+    this.assetRefresh = window.setTimeout(() => this.render(), 40);
+  }
+
+  private localAssetUrl(relative: string): Promise<string | null> {
+    const key = relative.replace(/^[/\\]+/, "");
+    const cached = this.blobbedAssets.get(key);
+    if (cached) return Promise.resolve(cached);
+    const direct = assetUrl(this.paths, key);
+    if (urlIsCanvasSafe(direct)) return Promise.resolve(direct);
+    let pending = this.localAssets.get(key);
+    if (!pending) {
+      pending = this.fetchLocalAsset(key);
+      this.localAssets.set(key, pending);
+    }
+    return pending;
+  }
+
+  private async fetchLocalAsset(relative: string): Promise<string | null> {
+    const direct = assetUrl(this.paths, relative);
+    try {
+      const blob = await fetchAssetBlob(direct, 8000);
+      const url = URL.createObjectURL(blob);
+      this.blobbedAssets.set(relative, url);
+      return url;
+    } catch (error) {
+      const missing = error instanceof Error && /asset fetch 404/.test(error.message);
+      if (missing) this.logLine(`image missing ${relative}`);
+      else this.logError(`image ${relative}`, error);
+      return null;
+    }
+  }
+
+  private async loadSafeImage(relative: string): Promise<HTMLImageElement | null> {
+    return loadImage(await this.localAssetUrl(relative));
+  }
+
+  private async attachPoster(clip: LoadedClip, file: string): Promise<void> {
+    const url = await this.localAssetUrl(file);
+    if (!url || !clip.poster) return;
+    clip.poster.src = url;
+  }
+
   private videoStatusText(): string {
     const gl = this.compositor
       ? `webgl ${this.compositor.usingWebGL ? "on" : "off"}${this.compositor.contextLost ? " lost" : ""}`
@@ -1375,7 +1498,8 @@ function stopStream(video: HTMLVideoElement | null): void {
   if (video) video.srcObject = null;
 }
 
-function loadImage(url: string): Promise<HTMLImageElement | null> {
+function loadImage(url: string | null): Promise<HTMLImageElement | null> {
+  if (!url) return Promise.resolve(null);
   return new Promise((resolve) => {
     const image = new Image();
     image.onload = () => resolve(image);

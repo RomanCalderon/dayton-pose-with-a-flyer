@@ -19,7 +19,10 @@ export function isTauri(): boolean {
 
 export function joinAsset(root: string, relative: string): string {
   const rel = relative.replace(/^[/\\]+/, "");
-  if (!isTauri()) return `/kiosk-assets/${rel.split("\\").join("/")}`;
+  if (!isTauri()) {
+    if (/^https?:\/\//i.test(root)) return `${root.replace(/\/$/, "")}/${rel.split("\\").join("/")}`;
+    return `/kiosk-assets/${rel.split("\\").join("/")}`;
+  }
   const sep = root.includes("\\") ? "\\" : "/";
   const base = root.replace(/[/\\]+$/, "");
   return `${base}${sep}${rel.split("/").join(sep)}`;

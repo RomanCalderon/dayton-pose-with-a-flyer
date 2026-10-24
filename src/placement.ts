@@ -5,6 +5,56 @@ export interface ClipSize {
   height: number;
 }
 
+export type ClipLayout = "stacked-alpha" | "vp9-alpha" | "straight";
+
+/** Operators can omit clipMeta. WebM files are VP9-with-alpha; everything else is stacked. */
+export function resolveClipLayout(file: string, layout: string | undefined): ClipLayout {
+  if (layout === "stacked-alpha" || layout === "vp9-alpha" || layout === "straight") return layout;
+  if (file.toLowerCase().endsWith(".webm")) return "vp9-alpha";
+  return "stacked-alpha";
+}
+
+export function resolveClipSize(
+  meta: { width?: number; height?: number } | undefined,
+  measured?: ClipSize,
+): ClipSize {
+  if (meta?.width && meta.height) return { width: meta.width, height: meta.height };
+  if (measured && measured.width > 0 && measured.height > 0) return measured;
+  return { width: 0, height: 0 };
+}
+
+/** videoHeight of a stacked file includes the alpha half. The quad uses the color half. */
+export function measuredColorSize(layout: ClipLayout, videoWidth: number, videoHeight: number): ClipSize {
+  if (videoWidth <= 0 || videoHeight <= 0) return { width: 0, height: 0 };
+  if (layout === "stacked-alpha") return { width: videoWidth, height: videoHeight / 2 };
+  return { width: videoWidth, height: videoHeight };
+}
+
+export function sameTransform(a: AthleteTransform, b: AthleteTransform): boolean {
+  return Math.abs(a.x - b.x) < 0.5 && Math.abs(a.y - b.y) < 0.5 && Math.abs(a.scale - b.scale) < 0.0001;
+}
+
+/**
+ * Keep the on-screen height when a real frame size replaces a guess.
+ * An untouched default placement is recomputed so a 1440×2160 clip stands at the edge.
+ */
+export function transformForMeasuredSize(
+  side: Side,
+  outputWidth: number,
+  outputHeight: number,
+  previousSize: ClipSize,
+  nextSize: ClipSize,
+  current: AthleteTransform,
+): AthleteTransform {
+  const guess = previousSize.height > 0 ? previousSize : { width: 360, height: 640 };
+  const initial = defaultTransform(side, outputWidth, outputHeight, guess);
+  if (previousSize.height <= 0 || sameTransform(current, initial)) {
+    return defaultTransform(side, outputWidth, outputHeight, nextSize);
+  }
+  const scale = nextSize.height > 0 ? current.scale * (previousSize.height / nextSize.height) : current.scale;
+  return clampTransform({ ...current, scale }, outputWidth, outputHeight);
+}
+
 /** Default center and scale so a cropped athlete stands at a screen edge. */
 export function defaultTransform(
   side: Side,

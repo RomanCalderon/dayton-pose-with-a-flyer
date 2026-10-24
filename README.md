@@ -102,7 +102,9 @@ Everything the screens read lives under `assets/` (or whatever `assets.root` poi
 | `fx/fire.mp4` | Hidden preview layer |
 | `placeholders/guest.png` | Stand-in when the photo camera is missing |
 
-`roster.json` `clipMeta` records `layout` (`stacked-alpha` or `vp9-alpha`) and the color-frame size. Clips in this repo are 360×640, 12 fps, 4 seconds, and are shared across the placeholder roster. Real clips should be one left and one right take per athlete, encoded at the crop size, with the last frame as the pose you want held.
+`roster.json` `clipMeta` records `layout` (`stacked-alpha` or `vp9-alpha`) and the color-frame size. It can be omitted: a `.webm` is treated as VP9-with-alpha and any other clip as stacked-alpha, and the quad uses `videoWidth` / `videoHeight` (half the height for a stacked file). Clips in this repo are 360×640, 12 fps, 4 seconds, and are shared across the placeholder roster. Real clips should be one left and one right take per athlete, encoded at the crop size, with the last frame as the pose you want held.
+
+Still images the compositor or the JPEG touches (the takeaway frame, posters, the guest stand-in, headshots) are fetched into memory before upload. `http://asset.localhost` is a different origin from the Tauri page, and an `<img>` pointed at it taints WebGL even when the file displays on screen.
 
 Regenerate the placeholders with `python3 scripts/generate_assets.py` (Pillow and ffmpeg). The script draws original silhouettes. It does not copy Dayton, NCAA, or sponsor artwork.
 
