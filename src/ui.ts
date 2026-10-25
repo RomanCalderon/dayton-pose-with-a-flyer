@@ -4,7 +4,7 @@ import {
   athleteArcName,
   estimateArcAdvance,
   fitArcFont,
-  headshotShiftY,
+  headshotLayerStyle,
   layoutPickGrid,
   nameArcPath,
   showJersey,
@@ -308,8 +308,11 @@ function headshotButton(
   nameInset: number,
 ): string {
   const name = athleteArcName(athlete.firstName, athlete.lastName);
-  const badge = showJersey(athlete.jersey) ? `<span class="jersey">${escapeHtml(String(athlete.jersey))}</span>` : "";
-  const photoStyle = `--hs-zoom:${headshot.zoom};--hs-x:${headshot.offsetX}px;--hs-y:${headshotShiftY(headshot.offsetY)}`;
+  const mascotIds = view.roster?.mascots?.map((mascot) => mascot.id);
+  const badge = showJersey(athlete.jersey, athlete, mascotIds)
+    ? `<span class="jersey">${escapeHtml(String(athlete.jersey))}</span>`
+    : "";
+  const photoStyle = headshotLayerStyle(headshot);
   return `<button class="headshot${selected ? " is-selected" : ""}" type="button" style="left:${slot.x}px;top:${slot.y}px;width:${size}px;height:${size}px" data-action="toggle-athlete" data-id="${escapeHtml(athlete.id)}" aria-pressed="${selected}">
     <span class="headshot-photo" style="${photoStyle}"><img alt="" src="${escapeHtml(view.assetUrl(athlete.headshot))}" /></span>
     ${nameArc(name, slot.index, nameInset)}

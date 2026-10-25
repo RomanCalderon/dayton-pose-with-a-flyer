@@ -8,7 +8,9 @@ import {
   fitArcFont,
   HEADSHOT_FRAME,
   headshotCrop,
+  headshotLayerStyle,
   headshotShiftY,
+  headshotWindowCenterX,
   layoutPickGrid,
   nameArcPath,
   pickColumns,
@@ -144,6 +146,15 @@ describe("headshot crop", () => {
     expect(crop.visibleFraction).toBeLessThan(0.35);
   });
 
+  it("keeps the image centred on the old window when the circle is the only clip", () => {
+    const style = headshotLayerStyle({ zoom: 1.5, offsetX: 4, offsetY: 0.02 });
+    expect(style).toBe("--hs-zoom:1.5;--hs-x:4px;--hs-y:-2%;--hs-left:137.414px;--hs-top:39.79px;--hs-width:177.468px");
+    const width = HEADSHOT_FRAME.w * 1.5;
+    expect(width).toBeCloseTo(266.202, 3);
+    expect(headshotWindowCenterX() - width / 2).toBeLessThan(HEADSHOT_FRAME.x);
+    expect(headshotWindowCenterX() + width / 2).toBeGreaterThan(HEADSHOT_FRAME.x + HEADSHOT_FRAME.w);
+  });
+
   it("treats a small offsetY as a fraction and a larger one as pixels", () => {
     const fraction = headshotCrop(564, 2000, { ...headshot, offsetY: 0.02, offsetX: 4 });
     expect(fraction.y).toBeCloseTo(-0.02 * fraction.height, 3);
@@ -181,12 +192,21 @@ describe("pick button text", () => {
     expect(floored.textLength).toBe(ARC_LIMIT);
   });
 
-  it("draws a name only when one exists and hides jersey 0", () => {
+  it("draws a name only when one exists and shows jersey 0", () => {
     expect(athleteArcName("casey", "alden")).toBe("CASEY ALDEN");
     expect(athleteArcName("  ", "")).toBe("");
-    expect(showJersey(0)).toBe(false);
-    expect(showJersey(Number.NaN)).toBe(false);
+    expect(showJersey(0)).toBe(true);
+    expect(showJersey(0, { id: "m-0" })).toBe(true);
     expect(showJersey(7)).toBe(true);
+    expect(showJersey(null)).toBe(false);
+    expect(showJersey(undefined)).toBe(false);
+    expect(showJersey(Number.NaN)).toBe(false);
+    expect(showJersey(-1)).toBe(false);
+    expect(showJersey(0, { id: "mascot-1" })).toBe(false);
+    expect(showJersey(0, { id: "mascot-2" })).toBe(false);
+    expect(showJersey(4, { id: "bird", type: "mascot" })).toBe(false);
+    expect(showJersey(4, { id: "bird" }, ["bird"])).toBe(false);
+    expect(showJersey(4, { id: "bird" }, ["other"])).toBe(true);
   });
 });
 
@@ -207,7 +227,8 @@ describe("pick screen markup", () => {
     expect(empty.match(/class="headshot[" ]/g)).toHaveLength(5);
     expect(empty.match(/class="hs-name"/g)).toHaveLength(4);
     expect(empty).toContain(">AVERY LANE<");
-    expect(empty.match(/class="jersey"/g)).toHaveLength(4);
+    expect(empty.match(/class="jersey"/g)).toHaveLength(5);
+    expect(empty).toContain(">0<");
 
     const selected = pickHtml(women, "womens", ["w1"]);
     expect(selected).toContain("is-selected");
@@ -219,7 +240,7 @@ describe("pick screen markup", () => {
   });
 });
 
-function person(id: string, firstName: string, lastName: string, jersey: number, team: RosterId): Athlete {
+function person(id: string, firstName: string, lastName: string, jersey: number | null, team: RosterId): Athlete {
   return {
     id,
     firstName,

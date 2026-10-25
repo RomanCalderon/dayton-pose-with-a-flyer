@@ -69,6 +69,25 @@ export function headshotShiftY(offsetY: number): string {
   return `${-offsetY}px`;
 }
 
+/** Horizontal centre of the old photo window. The image stays centred there inside the circle. */
+export function headshotWindowCenterX(frame = HEADSHOT_FRAME): number {
+  return frame.x + frame.w / 2;
+}
+
+/**
+ * Variables for the photo `<img>`. Width is the old window times zoom, the top
+ * stays on the old window's top, and the image is centred on that window.
+ * The button circle is the only clip.
+ */
+export function headshotLayerStyle(headshot: PickHeadshotConfig, frame = HEADSHOT_FRAME): string {
+  const zoom = headshot.zoom > 0 ? headshot.zoom : 1;
+  return `--hs-zoom:${cssNum(zoom)};--hs-x:${cssNum(headshot.offsetX)}px;--hs-y:${headshotShiftY(headshot.offsetY)};--hs-left:${cssNum(headshotWindowCenterX(frame))}px;--hs-top:${cssNum(frame.y)}px;--hs-width:${cssNum(frame.w)}px`;
+}
+
+function cssNum(value: number): string {
+  return String(Math.round(value * 1000) / 1000);
+}
+
 export function nameArcPath(inset: number): { d: string; radius: number; top: number } {
   const radius = NAME_ARC.radius - inset;
   const top = NAME_ARC.cy - radius;
@@ -166,8 +185,37 @@ export function athleteArcName(firstName: string, lastName: string): string {
   return `${firstName} ${lastName}`.trim().replace(/\s+/g, " ").toUpperCase();
 }
 
-export function showJersey(jersey: number): boolean {
-  return Number.isFinite(jersey) && jersey !== 0;
+export interface JerseyEntry {
+  id?: string;
+  /** Roster type. `"mascot"` never draws a badge. */
+  type?: string | null;
+}
+
+/** Ids that start with `mascot`, ignoring case, are mascots. */
+export function isMascotId(id: string | null | undefined): boolean {
+  return (id ?? "").trim().toLowerCase().startsWith("mascot");
+}
+
+/**
+ * A finite jersey of 0 or more draws the badge, including #0.
+ * Missing, null, and non-numeric values hide it. Mascots hide it too:
+ * an id prefixed `mascot`, `type: "mascot"`, or an id on the roster mascot list.
+ */
+export function showJersey(
+  jersey: number | null | undefined,
+  entry?: JerseyEntry,
+  mascotIds?: readonly string[],
+): boolean {
+  if (entry && isMascotEntry(entry, mascotIds)) return false;
+  return typeof jersey === "number" && Number.isFinite(jersey) && jersey >= 0;
+}
+
+function isMascotEntry(entry: JerseyEntry, mascotIds?: readonly string[]): boolean {
+  if (isMascotId(entry.id)) return true;
+  if ((entry.type ?? "").trim().toLowerCase() === "mascot") return true;
+  const id = (entry.id ?? "").trim().toLowerCase();
+  if (!id || !mascotIds) return false;
+  return mascotIds.some((mascotId) => mascotId.trim().toLowerCase() === id);
 }
 
 function clamp(value: number, min: number, max: number): number {

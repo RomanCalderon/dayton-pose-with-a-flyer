@@ -180,7 +180,10 @@ export interface Athlete {
   id: string;
   firstName: string;
   lastName: string;
-  jersey: number;
+  /** Finite numbers from 0 up draw a badge. `null` hides it. Mascots never draw one. */
+  jersey: number | null;
+  /** Optional roster kind. `"mascot"` hides the jersey badge. */
+  type?: string;
   team: RosterId;
   headshot: string;
   /** Full-body attract cutout. When omitted, the attract loop uses `headshot`. */
