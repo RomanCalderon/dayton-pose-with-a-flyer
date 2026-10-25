@@ -177,11 +177,3 @@ export function reduceSession(session: Session, event: SessionEvent): Session {
 export function screenAllowsIdle(screen: Screen): boolean {
   return screen === "pick" || screen === "adjust" || screen === "preview";
 }
-
-export const LOCK_WORDS = ["LOCK", "IN", "THAT", "POSE"] as const;
-
-/** Words revealed while the guest is finding their mark, one per second from 10. */
-export function lockWordsForCountdown(displaySecond: number, countdownFrom: number): string[] {
-  const revealed = Math.max(0, countdownFrom - displaySecond + 1);
-  return LOCK_WORDS.slice(0, Math.min(LOCK_WORDS.length, revealed));
-}

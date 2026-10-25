@@ -14,7 +14,7 @@ import {
 } from "./placement";
 import { urlIsCanvasSafe } from "./media";
 import { athleteSourceKind, playbackFrameReady } from "./playback";
-import { chooseSides, createSession, lockWordsForCountdown, reduceSession } from "./session";
+import { chooseSides, createSession, reduceSession } from "./session";
 import type { AppConfig, Athlete, RosterFile, Screen } from "./types";
 import { extractParticipantId, type ParticipantIdConfig } from "./participant";
 import { buildUploadForm, jpegFieldName, uploadEndpoint, uploadFields, uploadFilename } from "./upload";
@@ -110,13 +110,6 @@ describe("session", () => {
     expect(chooseSides(["a"], "random", () => 0.9).a).toBe("right");
     expect(chooseSides(["a"], "right", () => 0).a).toBe("right");
     expect(chooseSides(["a", "b"], "left", () => 0)).toEqual({ a: "left", b: "right" });
-  });
-
-  it("builds the lock-in line one word per second", () => {
-    expect(lockWordsForCountdown(10, 10)).toEqual(["LOCK"]);
-    expect(lockWordsForCountdown(9, 10)).toEqual(["LOCK", "IN"]);
-    expect(lockWordsForCountdown(7, 10)).toEqual(["LOCK", "IN", "THAT", "POSE"]);
-    expect(lockWordsForCountdown(1, 10)).toEqual(["LOCK", "IN", "THAT", "POSE"]);
   });
 
   it("does not start without a selection and ignores scans off the attract screen", () => {
@@ -422,6 +415,12 @@ describe("defaults", () => {
     expect(base.pick.headshot).toEqual({ zoom: 1.18, offsetX: 0, offsetY: 0 });
     expect(base.pick.nameInset).toBe(12);
     expect(base.capture.guestPlaceholder).toBe(true);
+    expect(base.countdown.lockTitle).toEqual({
+      enabled: true,
+      revealFraction: 0.5,
+      fadeDelayMs: 1000,
+      fadeDurationFraction: 0.5,
+    });
   });
 });
 
@@ -486,6 +485,13 @@ describe("background plate", () => {
     for (const screen of ["countdown", "flash", "adjust"] as const) {
       expect(chrome(screen), screen).not.toContain("bg-photo");
     }
+    const countdown = chrome("countdown");
+    expect(countdown).not.toContain("FPO");
+    expect(countdown).not.toContain("fpo-badge");
+    expect(countdown).toContain(">LOCK<");
+    expect(countdown).toContain(">IN<");
+    expect(countdown).toContain(">THAT<");
+    expect(countdown).toContain(">POSE<");
     expect(chrome("attract", {}, null)).not.toContain("bg-photo");
     expect(chrome("attract", {}, null)).toContain("bg-navy");
     const withLoop = chrome("attract", { attractVideo: "attract/custom.mp4" });

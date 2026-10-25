@@ -1,3 +1,4 @@
+import type { LockTitleSettings } from "./lock-title";
 import type { ParticipantIdConfig } from "./participant";
 
 export type StartMode = "qr" | "touch";
@@ -86,6 +87,10 @@ export interface AppConfig {
    */
   capture: {
     guestPlaceholder: boolean;
+  };
+  /** Countdown title. Timing is measured from the first live photo frame. */
+  countdown: {
+    lockTitle: LockTitleSettings;
   };
   output: {
     width: number;

@@ -66,6 +66,14 @@ export const DEFAULT_CONFIG: AppConfig = {
   capture: {
     guestPlaceholder: true,
   },
+  countdown: {
+    lockTitle: {
+      enabled: true,
+      revealFraction: 0.5,
+      fadeDelayMs: 1000,
+      fadeDurationFraction: 0.5,
+    },
+  },
   output: {
     width: 2560,
     height: 1440,

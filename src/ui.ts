@@ -9,7 +9,7 @@ import {
   nameArcPath,
   showJersey,
 } from "./pick-layout";
-import { lockWordsForCountdown } from "./session";
+import { LOCK_WORDS } from "./lock-title";
 import type { AppConfig, Athlete, PickGridConfig, PickHeadshotConfig, RosterFile, Session } from "./types";
 
 export const STAGE_W = 3840;
@@ -336,18 +336,15 @@ function trimNum(value: number): string {
 
 function renderCountdown(view: ViewModel): string {
   const second = view.session.countdown ?? view.config.timing.countdownFrom;
-  const words = lockWordsForCountdown(second, view.config.timing.countdownFrom);
-  const wordHtml = ["LOCK", "IN", "THAT", "POSE"]
-    .map((word) => `<span class="${words.includes(word) ? "is-on" : ""}">${word}</span>`)
-    .join("");
   const error = view.photoError ? `<div class="photo-error">${escapeHtml(view.photoError)}</div>` : "";
-  const fpo = view.hasPhoto ? "" : `<div class="fpo-badge">FPO</div>`;
   const flash = view.session.screen === "flash"
     ? `<div class="flash" style="opacity:${view.flashOpacity}"></div>`
     : "";
+  const lock = view.config.countdown.lockTitle.enabled
+    ? `<div class="lock" style="opacity:0">${LOCK_WORDS.map((word) => `<span style="opacity:0">${word}</span>`).join("")}</div>`
+    : "";
   return `<section class="screen countdown">
     ${error}
-    ${fpo}
     <div class="look">
       <svg class="look-svg" viewBox="0 0 300 300" aria-hidden="true">
         <defs>
@@ -363,7 +360,7 @@ function renderCountdown(view: ViewModel): string {
       </svg>
       <div class="look-count">${second}</div>
     </div>
-    <div class="lock">${wordHtml}</div>
+    ${lock}
     <button class="corner-btn corner-light" data-action="go-back">GO BACK</button>
     ${flash}
   </section>`;

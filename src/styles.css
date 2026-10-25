@@ -672,21 +672,26 @@ button, video { font-family: inherit; }
 
 .lock {
   position: absolute;
-  right: 40px;
-  top: 180px;
+  left: 2318.72px;
+  top: 0;
+  width: 1546px;
+  margin: 0;
   z-index: 2;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  font-family: "Saira Extra Condensed", sans-serif;
+  font-family: "Vitesse Sans", Arial, "Liberation Sans", sans-serif;
   font-weight: 700;
-  font-size: 280px;
-  line-height: 0.78;
-  letter-spacing: -2px;
-  color: transparent;
+  font-size: 569.92px;
+  line-height: 587.02px;
+  letter-spacing: 0;
+  text-align: right;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.6);
+  text-box: trim-both cap alphabetic;
+  pointer-events: none;
 }
 
-.lock span.is-on { color: #3c3c3c; }
+.lock span {
+  display: block;
+}
 
 .media-pool {
   position: absolute;
@@ -720,22 +725,6 @@ button, video { font-family: inherit; }
   border-radius: 18px;
   font-size: 36px;
   font-weight: 600;
-}
-
-.fpo-badge {
-  position: absolute;
-  left: 50%;
-  top: 46%;
-  transform: translate(-50%, -120px);
-  z-index: 4;
-  background: #e0129a;
-  color: white;
-  font-family: "Saira Extra Condensed", sans-serif;
-  font-size: 42px;
-  font-weight: 700;
-  letter-spacing: 1px;
-  padding: 6px 18px;
-  pointer-events: none;
 }
 
 .flash {

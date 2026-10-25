@@ -104,6 +104,18 @@
     "format": "image/jpeg",
     "quality": 0.9
   },
+  "countdown": {
+    // LOCK appears on the first live photo frame. The other words follow across
+    // revealFraction of the countdown. The block holds fadeDelayMs, then fades
+    // across fadeDurationFraction of the countdown. On a 10s countdown that is
+    // LOCK at 0s, POSE at 5s, and a fade from 1s to 6s.
+    "lockTitle": {
+      "enabled": true,
+      "revealFraction": 0.5,
+      "fadeDelayMs": 1000,
+      "fadeDurationFraction": 0.5
+    }
+  },
   "timing": {
     "countdownFrom": 10,
     "walkInStartsAt": 6,

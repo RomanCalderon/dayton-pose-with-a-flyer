@@ -39,13 +39,13 @@ These are on whenever `debug.allowKeyboard` is true (the prototype default).
 
 The debug overlay can also simulate a scan, force the VP9-alpha clip, and show the plus/minus buttons. A one-line hint sits on the attract screen while `debug.showHints` is true.
 
-`?screen=attract|pick|countdown|adjust|preview|thanks` jumps to that screen for layout checks. Add `&team=womens` or `&select=1`. `?mode=touch` or `?mode=qr` overrides `start.mode` for that launch, which is how you try touch-to-start without editing the config. `?webm=1` prefers the VP9 clip when the roster has one. `?scan=` replaces the simulated QR text for that launch. `?holdMs=`, `?outMs=`, `?inMs=`, `?offsetX=`, and `?keyWhite=0|1` override the attract rotation for that launch. `?still=` accepts an http(s) URL and plays that one cutout.
+`?screen=attract|pick|countdown|adjust|preview|thanks` jumps to that screen for layout checks. Add `&team=womens` or `&select=1`. `?mode=touch` or `?mode=qr` overrides `start.mode` for that launch, which is how you try touch-to-start without editing the config. `?webm=1` prefers the VP9 clip when the roster has one. `?scan=` replaces the simulated QR text for that launch. `?holdMs=`, `?outMs=`, `?inMs=`, `?offsetX=`, and `?keyWhite=0|1` override the attract rotation for that launch. `?still=` accepts an http(s) URL and plays that one cutout. `?lockMs=` freezes the countdown title that many milliseconds after the first camera frame. `?guestPlaceholder=0` draws black instead of the guest stand-in.
 
 ## What a guest does
 
 1. **Attract.** The loop plays under the “Pose with a Flyer” panel. In `qr` mode the side-camera well scans for an `http` or `https` URL and stores it as the participant URL. In `touch` mode the QR card is replaced by a full-screen **TOUCH TO START** control. A missing side camera blanks that well and shows `CAM-QR-01`.
 2. **Pick players.** Up to two athletes. Men's roster is the default. **SWAP TEAM** switches to women's and clears the selection, so the two teams are not mixed. **LET'S GO!** enables after one pick.
-3. **Countdown.** 10 down to 1. “LOCK IN THAT POSE” reveals one word per second. At 6 the selected clips start. One athlete uses `athletes.singleSelectionSide` (`left`, `right`, or `random`). Two athletes put the first pick on the left and the second on the right. The last frame is held for `timing.freezeBeforeCaptureMs` (2 seconds) before the flash.
+3. **Countdown.** 10 down to 1. “LOCK IN THAT POSE” stays hidden until the photo camera delivers a frame, then LOCK appears and the other words follow across the first half of the countdown. The block holds for one second and fades out over the next half. At 6 the selected clips start. One athlete uses `athletes.singleSelectionSide` (`left`, `right`, or `random`). Two athletes put the first pick on the left and the second on the right. The last frame is held for `timing.freezeBeforeCaptureMs` (2 seconds) before the flash.
 4. **Adjust.** Tap an athlete (Chapel Blue outline), drag to move, pinch to scale. Plus and minus buttons follow `features.plusMinusButtons` (on in this prototype so a mouse can resize; turn them off on the real touchscreen). **TRY AGAIN** reshoots. **ALL DONE!** continues. **RESET** returns to attract.
 5. **Preview.** Branded frame over the composite. **TRY AGAIN**, **SEND!**, or **START OVER**. A fire clip is loaded on this screen and kept hidden, matching the approved layout.
 6. **Thank you.** Returns to attract after `idle.thankYouAutoReturnSeconds` (8). The “your photo will be emailed” lines are hidden in touch mode.
@@ -167,6 +167,8 @@ participant_id = 1001
 
 `capture.guestPlaceholder` defaults to true. The countdown and capture plate then shows `placeholders/guest.png` when the photo camera has no live frame. Set it false to draw plain black behind the athletes instead. The guest file is not resolved or loaded, so a missing file does not raise the red strip.
 
+`countdown.lockTitle` is the four-line LOCK / IN / THAT / POSE block on the right of the countdown. It is Vitesse Sans Bold at 569.92px, white at 0.6 opacity, right-aligned in a box whose right edge sits 24.72px past the stage. Nothing is drawn before the photo camera’s first frame on that screen (`t0`). If the feed is already live when the screen opens, `t0` is the screen start. LOCK appears at `t0`. The other words are spaced evenly so POSE appears at `t0` plus `revealFraction` of `timing.countdownFrom` (5s of a 10s countdown). Each word fades in over 150ms. The whole block stays at full strength for `fadeDelayMs` (1000), then fades to 0 over `fadeDurationFraction` of the countdown (from 1s to 6s when the countdown is 10s). The clock is `performance.now()`, so a redraw does not restart the fade. Set `enabled` false to hide the title.
+
 The status and the first 500 characters of the response body are appended to `kiosk.log` and shown on the F2 overlay.
 
 Defaults:
@@ -180,6 +182,10 @@ Defaults:
 | `uploader.interactiveId` | `""` (field omitted) |
 | `uploader.extraFields` | `false` |
 | `capture.guestPlaceholder` | `true` |
+| `countdown.lockTitle.enabled` | `true` |
+| `countdown.lockTitle.revealFraction` | `0.5` |
+| `countdown.lockTitle.fadeDelayMs` | `1000` |
+| `countdown.lockTitle.fadeDurationFraction` | `0.5` |
 | `qr.participantId.from` | `auto` |
 | `qr.participantId.param` | `participant_id` |
 | `qr.participantId.segment` | `-1` |

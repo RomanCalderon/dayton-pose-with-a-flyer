@@ -9,6 +9,7 @@ import {
   type AttractStill,
 } from "./attract";
 import { countdownDue, countdownRemainingMs, countdownShownSecond } from "./clock";
+import { LOCK_FONT_SIZE, LOCK_LINE_HEIGHT, lockCapTopOffset, lockTitleAt } from "./lock-title";
 import {
   clampTransform,
   defaultTransform,
@@ -159,6 +160,12 @@ export class KioskApp {
   private painting = false;
   private countdownStarted = 0;
   private countdownTimer = 0;
+  /** performance.now() when this countdown first had a live photo frame. */
+  private lockTitleT0: number | null = null;
+  private photoLiveAtCountdownOpen = false;
+  /** Debug freeze of the lock title, in ms after t0. Null follows the wall clock. */
+  private lockFixtureMs: number | null = null;
+  private lockCapApplied = false;
   private paintThrows = false;
   private logLines: string[] = [];
   private logPath = "";
@@ -445,6 +452,21 @@ export class KioskApp {
     if (params.get("keyWhite") === "1") rotation.keyWhite = true;
     if (params.get("keyWhite") === "0") rotation.keyWhite = false;
     this.config = { ...this.config, attract: { rotation } };
+    if (params.get("guestPlaceholder") === "0" || params.get("guestPlaceholder") === "1") {
+      this.config = {
+        ...this.config,
+        capture: { ...this.config.capture, guestPlaceholder: params.get("guestPlaceholder") === "1" },
+      };
+    }
+    const fadeDelayMs = Number(params.get("fadeDelayMs"));
+    if (params.has("fadeDelayMs") && Number.isFinite(fadeDelayMs) && fadeDelayMs >= 0) {
+      this.config = {
+        ...this.config,
+        countdown: { lockTitle: { ...this.config.countdown.lockTitle, fadeDelayMs } },
+      };
+    }
+    const lockMs = Number(params.get("lockMs"));
+    if (params.has("lockMs") && Number.isFinite(lockMs)) this.lockFixtureMs = lockMs;
     const still = params.get("still");
     if (still && /^https?:\/\//i.test(still)) this.attractOverrideFile = still;
   }
@@ -525,6 +547,7 @@ export class KioskApp {
     const view = this.view();
     this.noteRosterOverflow();
     this.chrome.innerHTML = renderChrome(view);
+    this.syncLockTitle();
     this.schedulePickNameFit();
     const mode = canvasMode(this.session.screen);
     this.placeCanvas(mode);
@@ -806,6 +829,8 @@ export class KioskApp {
     this.capturing = false;
     this.frozenCamera = null;
     this.countdownStarted = performance.now();
+    this.photoLiveAtCountdownOpen = this.photoFrameLive();
+    this.lockTitleT0 = this.photoLiveAtCountdownOpen ? this.countdownStarted : null;
     void this.openPhoto();
     for (const id of this.session.selectedIds) {
       const clip = this.ensureClip(id, this.session.sides[id]);
@@ -848,6 +873,7 @@ export class KioskApp {
       this.frozen = true;
       void this.holdLastFrame();
     }
+    this.syncLockTitle();
     this.refreshDebugLive();
   }
 
@@ -950,6 +976,59 @@ export class KioskApp {
     const background = this.backgroundLayer();
     const athletes = this.athleteLayers();
     this.compositor.draw(background, athletes);
+    this.syncLockTitle();
+  }
+
+  private photoFrameLive(): boolean {
+    return Boolean(this.photoVideo && this.photoVideo.videoWidth > 0);
+  }
+
+  /** Wall-clock lock title. Rewriting the chrome does not restart the fade. */
+  private syncLockTitle(): void {
+    if (this.session.screen !== "countdown") return;
+    const root = this.chrome.querySelector<HTMLElement>(".lock");
+    if (!root) return;
+    this.applyLockCapFallback(root);
+    const title = this.config.countdown.lockTitle;
+    let elapsed = this.lockFixtureMs;
+    if (elapsed === null) {
+      if (this.lockTitleT0 === null) {
+        if (!this.photoFrameLive()) {
+          root.style.opacity = "0";
+          return;
+        }
+        this.lockTitleT0 = this.photoLiveAtCountdownOpen ? this.countdownStarted : performance.now();
+      }
+      elapsed = performance.now() - this.lockTitleT0;
+    }
+    const frame = lockTitleAt(elapsed, this.config.timing.countdownFrom, title);
+    root.style.opacity = String(frame.blockOpacity);
+    const spans = root.querySelectorAll<HTMLElement>("span");
+    spans.forEach((span, index) => {
+      span.style.opacity = String(frame.words[index]?.opacity ?? 0);
+    });
+  }
+
+  private applyLockCapFallback(root: HTMLElement): void {
+    if (this.lockCapApplied) return;
+    if (typeof CSS !== "undefined" && CSS.supports("text-box", "trim-both cap alphabetic")) {
+      this.lockCapApplied = true;
+      return;
+    }
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    context.font = `700 ${LOCK_FONT_SIZE}px "Vitesse Sans"`;
+    const sample = context.measureText("H");
+    if (!sample.fontBoundingBoxAscent || !sample.actualBoundingBoxAscent) return;
+    const shift = lockCapTopOffset({
+      lineHeight: LOCK_LINE_HEIGHT,
+      fontAscent: sample.fontBoundingBoxAscent,
+      fontDescent: sample.fontBoundingBoxDescent,
+      capAscent: sample.actualBoundingBoxAscent,
+    });
+    root.style.top = `${-shift}px`;
+    this.lockCapApplied = true;
   }
 
   private backgroundLayer(): BackgroundLayer | null {

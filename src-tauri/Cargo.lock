@@ -2252,7 +2252,7 @@ dependencies = [
 
 [[package]]
 name = "pose-with-a-flyer"
-version = "0.1.12"
+version = "0.1.13"
 dependencies = [
  "serde",
  "serde_json",
