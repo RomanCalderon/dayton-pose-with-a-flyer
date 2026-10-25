@@ -499,7 +499,8 @@ button, video { font-family: inherit; }
 
 .pick-swap,
 .pick-go,
-.pick-back {
+.pick-back,
+.preview-send {
   border-radius: 999px;
   font-family: "Vitesse Sans", Arial, "Liberation Sans", sans-serif;
   font-weight: 700;
@@ -511,7 +512,8 @@ button, video { font-family: inherit; }
 }
 
 .pick-swap,
-.pick-go {
+.pick-go,
+.preview-send {
   width: 300px;
   height: 100px;
   padding: 10px;
@@ -536,6 +538,38 @@ button, video { font-family: inherit; }
   background: #fff;
   color: #00acec;
   cursor: pointer;
+}
+
+.preview-panel {
+  left: 1385px;
+  top: 1788px;
+  box-shadow: none;
+}
+
+.preview-send {
+  border: 0;
+  background: #fff;
+  color: #002554;
+}
+
+.preview-try:active:not(:disabled),
+.preview-send:active:not(:disabled) {
+  background: #000;
+  border-color: #000;
+  color: #fff;
+}
+
+.preview-try:disabled,
+.preview-send:disabled {
+  background: rgba(0, 0, 0, 0.1);
+  border-color: transparent;
+  color: rgba(255, 255, 255, 0.05);
+  cursor: default;
+}
+
+.preview .pick-back {
+  left: 40px;
+  top: 2080px;
 }
 
 .pick-back {
@@ -756,39 +790,59 @@ button, video { font-family: inherit; }
   cursor: pointer;
 }
 
-.vert {
+.side-word {
   position: absolute;
-  top: 150px;
   z-index: 4;
+  margin: 0;
   display: flex;
-  flex-direction: column;
-  font-family: "Saira Extra Condensed", sans-serif;
-  font-weight: 700;
-  font-size: 248px;
-  line-height: 0.78;
-  letter-spacing: -1px;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+  pointer-events: none;
 }
 
-.vert-left { left: 36px; }
-.vert-right { right: 20px; align-items: flex-end; }
+.side-word span {
+  font-family: "Vitesse Sans", Arial, "Liberation Sans", sans-serif;
+  font-weight: 700;
+  font-synthesis: none;
+  line-height: 1.03;
+  letter-spacing: 0;
+  text-transform: uppercase;
+  color: #fff;
+  white-space: nowrap;
+  text-box: trim-both cap alphabetic;
+}
+
+/* Cap box of 570px Vitesse Sans Bold. Rotated -90deg so it reads bottom to top. */
+.side-thats {
+  left: 126.505737px;
+  top: -54px;
+  width: 399.00009px;
+  height: 2063px;
+}
+
+.side-thats span {
+  font-size: 570px;
+  transform: rotate(-90deg);
+}
+
+/* Cap box of 474px Vitesse Sans Bold. Rotated 90deg so it reads top to bottom. */
+.side-money {
+  left: 3366.99992px;
+  top: -53.99998px;
+  width: 332.00008px;
+  height: 1758.00001px;
+}
+
+.side-money span {
+  font-size: 474px;
+  transform: rotate(90deg);
+}
 
 .frame-overlay {
   position: absolute;
   z-index: 4;
   pointer-events: none;
-  filter: drop-shadow(0 30px 40px rgba(0, 0, 0, 0.35));
-}
-
-.fire-layer {
-  position: absolute;
-  left: 470px;
-  top: 130px;
-  width: 2900px;
-  height: 200px;
-  object-fit: cover;
-  opacity: 0;
-  pointer-events: none;
-  z-index: 2;
 }
 
 .thanks-copy {

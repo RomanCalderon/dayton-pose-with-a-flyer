@@ -15,7 +15,8 @@ import type { AppConfig, Athlete, PickGridConfig, PickHeadshotConfig, RosterFile
 export const STAGE_W = 3840;
 export const STAGE_H = 2160;
 
-export const PHOTO_RECT = { x: 470, y: 130, w: 2900, h: 1631 };
+/** Stage-space photo well. Matches the 2560×1440 takeaway JPEG 1:1. */
+export const PHOTO_RECT = { x: 640, y: 162, w: 2560, h: 1440 };
 
 export interface ViewModel {
   config: AppConfig;
@@ -402,28 +403,22 @@ function plusMinus(view: ViewModel): string {
 }
 
 function renderPreview(view: ViewModel): string {
-  const fire = view.assetUrl(view.config.assets.fireVideo);
   const rect = PHOTO_RECT;
-  const fireVideo = fire
-    ? `<video class="fire-layer" src="${escapeHtml(fire)}" autoplay muted loop playsinline></video>`
-    : "";
+  const logo = view.assetUrl("branding/dayton-d-logo-white.svg");
   return `<section class="screen preview">
     ${background(view, false)}
-    <div class="vert vert-left" aria-hidden="true">${letters("THAT'S")}</div>
-    <div class="vert vert-right" aria-hidden="true">${letters("MONEY")}</div>
+    <p class="side-word side-thats" aria-hidden="true"><span>that\u2019s</span></p>
+    <p class="side-word side-money" aria-hidden="true"><span>money</span></p>
     <img class="frame-overlay" alt="" src="${escapeHtml(view.assetUrl(view.config.assets.takeawayFrame))}" style="left:${rect.x}px;top:${rect.y}px;width:${rect.w}px;height:${rect.h}px" />
-    ${fireVideo}
-    <div class="dock dock-preview">
-      ${mark("white")}
-      <button class="pill pill-ghost" data-action="try-again">TRY AGAIN</button>
-      <button class="pill pill-send" data-action="send">SEND!</button>
+    <div class="pick-panel preview-panel">
+      <img class="pick-logo" alt="" src="${escapeHtml(logo)}" width="160" height="100" />
+      <div class="pick-panel-actions">
+        <button class="pick-swap preview-try" type="button" data-action="try-again">TRY AGAIN</button>
+        <button class="preview-send" type="button" data-action="send">SEND!</button>
+      </div>
     </div>
-    <button class="corner-btn" data-action="start-over">START OVER</button>
+    <button class="pick-back" type="button" data-action="start-over">START OVER</button>
   </section>`;
-}
-
-function letters(word: string): string {
-  return word.split("").map((letter) => `<span>${escapeHtml(letter)}</span>`).join("");
 }
 
 function renderThanks(view: ViewModel): string {

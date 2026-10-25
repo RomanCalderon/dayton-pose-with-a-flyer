@@ -540,32 +540,11 @@ def attract_and_fire() -> None:
 
 
 def takeaway_frame(path: Path) -> None:
-    w, h = 2560, 1440
-    img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(img)
-    # red hairline border
-    for i in range(10):
-        draw.rectangle([i, i, w - 1 - i, h - 1 - i], outline=RED)
-    # placeholder D mark, original geometric letter, not the Flyers logo
-    draw.rounded_rectangle([48, 40, 168, 150], radius=18, fill=RED)
-    fnt = font(78, bold=True)
-    draw.text((78, 52), "D", font=fnt, fill=WHITE)
-    # bottom banner
-    banner_h = 110
-    y0 = h - banner_h
-    draw.rectangle([0, y0, w, h], fill=RED)
-    title = font(42, bold=True)
-    draw.text((48, y0 + 32), "THE EPICENTER OF COLLEGE BASKETBALL", font=title, fill=WHITE)
-    small = font(28, bold=True)
-    draw.text((1680, y0 + 38), "SPONSORED BY", font=small, fill=WHITE)
-    # text sponsor lockup, not the credit-union logo artwork
-    serif = font(32, bold=True)
-    draw.rectangle([1960, y0 + 18, 2500, h - 18], fill=(10, 42, 92, 255))
-    draw.text((1980, y0 + 28), "Wright-Patt", font=serif, fill=WHITE)
-    tiny = font(16, bold=True)
-    draw.text((1980, y0 + 66), "CREDIT UNION, INC.", font=tiny, fill=(180, 200, 220, 255))
-    path.parent.mkdir(parents=True, exist_ok=True)
-    img.save(path)
+    """Leave the checked-in Figma frame alone (node 63:1635, 2560×1440)."""
+    if path.is_file():
+        print(f"keeping Figma takeaway frame {path}")
+        return
+    print(f"takeaway frame missing at {path}; not generating a placeholder")
 
 
 def write_qr(path: Path) -> None:

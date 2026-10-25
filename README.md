@@ -104,19 +104,19 @@ Everything the screens read lives under `assets/`. A copy in the custom or machi
 | `athletes/<id>_left.webm` | Optional VP9 with alpha. Used when the mp4 fails, or when the debug overlay prefers WebM |
 | `branding/background.jpg` | Static plate behind attract, pick, preview, and thank-you. Cover-fit. A 16:9 file fills the stage. A taller file is centered and shifted up 31px, matching the Figma crop of the 3840×2320 fill. Countdown and tap-to-adjust keep the live camera instead |
 | `branding/dayton-d-logo-red.svg` | Red D on the attract register card |
-| `branding/dayton-d-logo-white.svg` | White D on the pick-screen panel |
+| `branding/dayton-d-logo-white.svg` | White D on the pick-screen panel and the preview approval panel |
 | `branding/qr.png` | Registration QR with the `QRCO.DE/FLYERPOSE` caption baked in, drawn at 216.43×268.8 |
 | `fonts/Vitesse-Bold.woff2`, `.woff`, `.otf`, or `.ttf` | Optional machine override for Vitesse Bold. The build already embeds `src/fonts/Vitesse-Bold.otf` |
 | `attract/loop.mp4` | Legacy generated picture of the old diagonal screen. The app does not play this path. Any other `assets.attractVideo` path still plays only on the attract screen, above the plate |
-| `frames/takeaway_v1.png` | Transparent PNG composited over the 2560×1440 JPEG |
-| `fx/fire.mp4` | Hidden preview layer |
+| `frames/takeaway_v1.png` | Figma takeaway frame (2560×1440). Transparent photo window. Drawn on the preview and over the JPEG |
+| `fx/fire.mp4` | Still bundled. The approved preview frame does not show it |
 | `placeholders/guest.png` | Stand-in when the photo camera is missing. Skipped entirely when `capture.guestPlaceholder` is false |
 
 `roster.json` `clipMeta` records `layout` (`stacked-alpha` or `vp9-alpha`) and the color-frame size. It can be omitted: a `.webm` is treated as VP9-with-alpha and any other clip as stacked-alpha, and the quad uses `videoWidth` / `videoHeight` (half the height for a stacked file). Clips in this repo are 360×640, 12 fps, 4 seconds, and are shared across the placeholder roster. Real clips should be one left and one right take per athlete, encoded at the crop size, with the last frame as the pose you want held.
 
 Still images the compositor or the JPEG touches (the takeaway frame, posters, the guest stand-in, headshots) are fetched into memory before upload. `http://asset.localhost` is a different origin from the Tauri page, and an `<img>` pointed at it taints WebGL even when the file displays on screen.
 
-Regenerate the placeholders with `python3 scripts/generate_assets.py` (Pillow and ffmpeg). The script draws original silhouettes. It does not copy Dayton, NCAA, or sponsor artwork, and it does not rewrite `branding/background.jpg`.
+Regenerate the placeholders with `python3 scripts/generate_assets.py` (Pillow and ffmpeg). The script draws original silhouettes. It does not copy Dayton, NCAA, or sponsor artwork, and it does not rewrite `branding/background.jpg` or `frames/takeaway_v1.png`.
 
 `branding/background.jpg` in this repo is the real 3840×2160 collage, including the Wright-Patt strip, so builds ship it. A file at `C:\DaytonKiosk\assets\branding\background.jpg` still overrides the bundled copy. If the file is missing or fails to load, the screen falls back to solid Dayton navy `#002554` and the miss is written to the log.
 
@@ -137,7 +137,7 @@ The register card body uses [Work Sans SemiBold](https://fonts.google.com/specim
 
 `attract.rotation` cycles every roster still (men, women, and mascots; a `still` path wins over `headshot`, and a repeated id is shown once). It holds for `holdMs` (6000), slides fully off the left in `outMs` (700, ease-in), swaps the decoded next cutout off screen, then slides in over `inMs` (900, ease-out). `offsetX` (100) shifts only the resting center to the right, in stage pixels, so the figure covers less of the title. The exit transform does not include that shift. The loop pauses when the screen is not attract. `keyWhite` defaults to false because the real cutouts are already transparent. Set it true only for opaque stills; border-connected white is removed and an existing alpha channel is left alone. The sponsored-by block and the rotate button stay hidden. The 200×200 camera slot stays white when the side camera is missing.
 
-The red “D” and the frame artwork are original placeholders. The Wright-Patt strip is not drawn in the chrome; it is baked into `branding/background.jpg`. Drop licensed logo files in when you have them, and point the frame at the real `takeaway_v1.png`. Do not commit other trademarked logos or athlete photographs to this repository while it is public.
+The athlete silhouettes and headshots are original placeholders. `frames/takeaway_v1.png` is the Figma frame artwork, with a transparent photo window, and the generator does not overwrite it. The Wright-Patt strip on the stage plate is baked into `branding/background.jpg`. Do not commit other trademarked logos or athlete photographs to this repository while it is public.
 
 ## Uploader contract
 
@@ -247,11 +247,11 @@ The compositor draws at 2560×1440. DOM chrome is laid out on a 3840×2160 stage
 
 On the countdown, an athlete stays hidden until that clip fires `playing` and a new frame is presented (`requestVideoFrameCallback`, or `currentTime > 0` when the callback is missing). The paused first frame, the poster, and the PNG still are not drawn during the walk-in, so a clip that starts inside the frame does not sit frozen on screen. Once a frame has been presented, the clip stays up through the last-frame hold. Adjust, the flash, and preview still show that held pose, and a clip that never started falls back to its still or poster there so the photo is not missing an athlete.
 
-The preview screen scales that full 2560×1440 buffer into the photo well. The takeaway frame, including its tagline bar, is drawn over the same rectangle on screen and in the JPEG, so the preview matches the file that is uploaded. The dock and the side type sit outside the well. The screen background behind them is the static plate.
+The preview screen scales that full 2560×1440 buffer into the photo well at stage (640, 162). The takeaway frame, including its tagline bar, is drawn over the same rectangle on screen and in the JPEG, with no drop shadow, so the preview matches the file that is uploaded. THAT’S and MONEY are single-line Vitesse Sans Bold, rotated beside the well. The approval panel and Start Over sit on the plate below it. The fire sequence is not drawn on this screen.
 
 ## Known gaps
 
-- Placeholder roster, clips, headshots, and frame. The background plate is the real collage. No Vitesse. The attract loop is off unless `assets.attractVideo` is set.
+- Placeholder roster, clips, and headshots. The takeaway frame is the Figma artwork. The background plate is the real collage. No Vitesse. The attract loop is off unless `assets.attractVideo` is set.
 - `list_cameras` serial and port lookup is Windows-only (Media Foundation + CfgMgr32). Other platforms return an empty list and the web layer falls back to the first webcam.
 - Friendly-name renaming of the two Brios is still a manual setup step. The app cannot hash a USB serial into a WebView `deviceId`.
 - The kiosk posts to the uploader and does not retry. Queueing and delivery live in that service.

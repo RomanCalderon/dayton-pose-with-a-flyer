@@ -482,8 +482,26 @@ describe("background plate", () => {
       expect(html, screen).not.toContain("bg-video");
     }
     expect(chrome("attract")).toContain("object-position:center 69.375%");
-    expect(chrome("preview")).toContain("frame-overlay");
-    expect(chrome("preview")).toContain("frames/takeaway_v1.png");
+    expect(PHOTO_RECT).toEqual({ x: 640, y: 162, w: 2560, h: 1440 });
+    const preview = chrome("preview");
+    expect(preview).toContain("frame-overlay");
+    expect(preview).toContain("frames/takeaway_v1.png");
+    expect(preview).toContain("side-thats");
+    expect(preview).toContain("that\u2019s");
+    expect(preview).toContain("side-money");
+    expect(preview).toContain(">money<");
+    expect(preview).toContain("preview-panel");
+    expect(preview).toContain("dayton-d-logo-white.svg");
+    expect(preview).toContain("preview-try");
+    expect(preview).toContain("preview-send");
+    expect(preview).toContain("TRY AGAIN");
+    expect(preview).toContain("SEND!");
+    expect(preview).toContain("pick-back");
+    expect(preview).toContain("START OVER");
+    expect(preview).not.toContain("fire-layer");
+    expect(preview).not.toContain("dock-preview");
+    expect(preview).not.toContain("Look Good");
+    expect(preview).not.toContain("vert-left");
     for (const screen of ["countdown", "flash", "adjust"] as const) {
       expect(chrome(screen), screen).not.toContain("bg-photo");
     }
