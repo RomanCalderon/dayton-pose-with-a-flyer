@@ -63,6 +63,9 @@ export const DEFAULT_CONFIG: AppConfig = {
     // Prototype default. A pinned kiosk should set this to "error".
     onMissing: "fallback",
   },
+  capture: {
+    guestPlaceholder: true,
+  },
   output: {
     width: 2560,
     height: 1440,

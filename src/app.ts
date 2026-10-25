@@ -56,6 +56,8 @@ import { postPhoto, responseSnippet, uploadEndpoint, uploadFields, uploadFilenam
 import {
   canvasToJpeg,
   Compositor,
+  GUEST_PLACEHOLDER_FILE,
+  guestStandInLayer,
   type AthleteLayer,
   type AlphaLayout,
   type BackgroundLayer,
@@ -369,8 +371,9 @@ export class KioskApp {
   }
 
   private async loadStillImages(): Promise<void> {
+    const guestFile = this.config.capture.guestPlaceholder ? GUEST_PLACEHOLDER_FILE : "";
     const [guest, frame] = await Promise.all([
-      this.loadSafeImage("placeholders/guest.png"),
+      guestFile ? this.loadSafeImage(guestFile) : Promise.resolve(null),
       this.loadSafeImage(this.config.assets.takeawayFrame),
       this.loadBackground(),
     ]);
@@ -968,16 +971,16 @@ export class KioskApp {
         fit: "cover",
       };
     }
-    if (this.guestImage) {
-      return {
-        source: this.guestImage,
-        mirror: false,
-        width: this.guestImage.naturalWidth,
-        height: this.guestImage.naturalHeight,
-        fit: "contain",
-      };
-    }
-    return null;
+    return guestStandInLayer(
+      this.config.capture.guestPlaceholder,
+      this.guestImage
+        ? {
+            source: this.guestImage,
+            width: this.guestImage.naturalWidth,
+            height: this.guestImage.naturalHeight,
+          }
+        : null,
+    );
   }
 
   private athleteLayers(): AthleteLayer[] {

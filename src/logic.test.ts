@@ -18,6 +18,7 @@ import { chooseSides, createSession, lockWordsForCountdown, reduceSession } from
 import type { AppConfig, Athlete, RosterFile, Screen } from "./types";
 import { extractParticipantId, type ParticipantIdConfig } from "./participant";
 import { buildUploadForm, jpegFieldName, uploadEndpoint, uploadFields, uploadFilename } from "./upload";
+import { GUEST_PLACEHOLDER_FILE, guestStandInLayer } from "./compositor";
 import { assetMissingMessage, assetServedMessage, referencedAssetPaths } from "./platform";
 import {
   attractVideoSource,
@@ -420,6 +421,7 @@ describe("defaults", () => {
     });
     expect(base.pick.headshot).toEqual({ zoom: 1.18, offsetX: 0, offsetY: 0 });
     expect(base.pick.nameInset).toBe(12);
+    expect(base.capture.guestPlaceholder).toBe(true);
   });
 });
 
@@ -547,11 +549,32 @@ describe("asset search", () => {
     expect(files).toContain("stills/pose-a.png");
     expect(files).toContain("stills/mascot.png");
     expect(files).toContain("athletes/left.mp4");
+    expect(files).toContain(GUEST_PLACEHOLDER_FILE);
     expect(files).not.toContain("attract/loop.mp4");
     expect(assetServedMessage("branding/qr.png", "C:/DaytonKiosk/assets")).toBe(
       "asset branding/qr.png root=C:/DaytonKiosk/assets",
     );
     expect(assetMissingMessage()).toBe("missing from the custom root and the bundled assets folder");
+  });
+});
+
+describe("guest placeholder", () => {
+  const guest = { source: { kind: "guest" } as unknown as CanvasImageSource, width: 640, height: 360 };
+
+  it("fills a missing key with true and skips the file when false", () => {
+    expect(parseConfig("{}").capture.guestPlaceholder).toBe(true);
+    expect(parseConfig('{ "capture": {} }').capture.guestPlaceholder).toBe(true);
+    const off = parseConfig('{ "capture": { "guestPlaceholder": false } }');
+    expect(off.capture.guestPlaceholder).toBe(false);
+
+    const shown = guestStandInLayer(true, guest);
+    expect(shown).toMatchObject({ source: guest.source, mirror: false, width: 640, height: 360, fit: "contain" });
+    expect(guestStandInLayer(false, guest)).toBeNull();
+    expect(guestStandInLayer(true, null)).toBeNull();
+
+    const roster: RosterFile = { version: 1, teams: { mens: [], womens: [] } };
+    expect(referencedAssetPaths(roster, parseConfig("{}"))).toContain(GUEST_PLACEHOLDER_FILE);
+    expect(referencedAssetPaths(roster, off)).not.toContain(GUEST_PLACEHOLDER_FILE);
   });
 });
 

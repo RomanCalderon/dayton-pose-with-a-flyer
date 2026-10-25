@@ -4,6 +4,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { version as packageVersion } from "../package.json" with { type: "json" };
 import { parseConfig } from "./config";
 import type { AppConfig, CameraList, RosterFile, RosterMascot } from "./types";
+import { GUEST_PLACEHOLDER_FILE } from "./compositor";
 import { attractVideoSource } from "./ui";
 
 export interface RuntimePaths {
@@ -114,10 +115,10 @@ export function referencedAssetPaths(roster: RosterFile | null, config: AppConfi
     config.assets.rosterFile,
     config.assets.takeawayFrame,
     config.assets.fireVideo,
-    "placeholders/guest.png",
     "branding/dayton-d-logo-red.svg",
     "branding/qr.png",
   ];
+  if (config.capture.guestPlaceholder) files.push(GUEST_PLACEHOLDER_FILE);
   const background = config.assets.background.trim();
   if (background) files.push(background);
   const attract = attractVideoSource(config.assets.attractVideo);

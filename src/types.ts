@@ -80,6 +80,13 @@ export interface AppConfig {
     qr: CameraRoleConfig;
     onMissing: OnMissing;
   };
+  /**
+   * Capture plate behind the athletes. `guestPlaceholder` draws `placeholders/guest.png`
+   * when the photo camera has no live frame. False leaves that plate black and skips the file.
+   */
+  capture: {
+    guestPlaceholder: boolean;
+  };
   output: {
     width: number;
     height: number;

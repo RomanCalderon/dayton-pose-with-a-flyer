@@ -93,6 +93,11 @@
     },
     "onMissing": "fallback"
   },
+  "capture": {
+    // true: show placeholders/guest.png when the photo camera has no live frame.
+    // false: plain black behind the athletes, and the guest file is not loaded.
+    "guestPlaceholder": true
+  },
   "output": {
     "width": 2560,
     "height": 1440,

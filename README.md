@@ -110,7 +110,7 @@ Everything the screens read lives under `assets/`. A copy in the custom or machi
 | `attract/loop.mp4` | Legacy generated picture of the old diagonal screen. The app does not play this path. Any other `assets.attractVideo` path still plays only on the attract screen, above the plate |
 | `frames/takeaway_v1.png` | Transparent PNG composited over the 2560×1440 JPEG |
 | `fx/fire.mp4` | Hidden preview layer |
-| `placeholders/guest.png` | Stand-in when the photo camera is missing |
+| `placeholders/guest.png` | Stand-in when the photo camera is missing. Skipped entirely when `capture.guestPlaceholder` is false |
 
 `roster.json` `clipMeta` records `layout` (`stacked-alpha` or `vp9-alpha`) and the color-frame size. It can be omitted: a `.webm` is treated as VP9-with-alpha and any other clip as stacked-alpha, and the quad uses `videoWidth` / `videoHeight` (half the height for a stacked file). Clips in this repo are 360×640, 12 fps, 4 seconds, and are shared across the placeholder roster. Real clips should be one left and one right take per athlete, encoded at the crop size, with the last frame as the pose you want held.
 
@@ -165,6 +165,8 @@ participant_id = 1001
 
 `uploader.extraFields` defaults to false. Set it true to also send the old prototype fields (`participantUrl`, `sessionId`, `capturedAt`, `athletes`, `roster`) on the same request. The default request does not include them.
 
+`capture.guestPlaceholder` defaults to true. The countdown and capture plate then shows `placeholders/guest.png` when the photo camera has no live frame. Set it false to draw plain black behind the athletes instead. The guest file is not resolved or loaded, so a missing file does not raise the red strip.
+
 The status and the first 500 characters of the response body are appended to `kiosk.log` and shown on the F2 overlay.
 
 Defaults:
@@ -177,6 +179,7 @@ Defaults:
 | `uploader.fileField` | `image` |
 | `uploader.interactiveId` | `""` (field omitted) |
 | `uploader.extraFields` | `false` |
+| `capture.guestPlaceholder` | `true` |
 | `qr.participantId.from` | `auto` |
 | `qr.participantId.param` | `participant_id` |
 | `qr.participantId.segment` | `-1` |

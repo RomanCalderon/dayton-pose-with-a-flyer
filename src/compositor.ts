@@ -24,6 +24,26 @@ export interface BackgroundLayer {
   fit: "cover" | "contain";
 }
 
+export const GUEST_PLACEHOLDER_FILE = "placeholders/guest.png";
+
+/**
+ * Stand-in plate when the photo camera has no frame.
+ * A false `guestPlaceholder` returns null so the compositor's black clear shows through.
+ */
+export function guestStandInLayer(
+  guestPlaceholder: boolean,
+  guest: { source: CanvasImageSource; width: number; height: number } | null,
+): BackgroundLayer | null {
+  if (!guestPlaceholder || !guest || guest.width <= 0 || guest.height <= 0) return null;
+  return {
+    source: guest.source,
+    mirror: false,
+    width: guest.width,
+    height: guest.height,
+    fit: "contain",
+  };
+}
+
 const VERT = `#version 300 es
 layout(location = 0) in vec2 aPos;
 layout(location = 1) in vec2 aUv;
