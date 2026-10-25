@@ -6,6 +6,10 @@ export const LOCK_FADE_IN_MS = 150;
 
 export interface LockTitleSettings {
   enabled: boolean;
+  /** Solid fill. The fade is applied separately as element opacity. */
+  color: string;
+  /** Opacity while the block is still holding, before the fade. */
+  opacity: number;
   /** POSE appears this fraction of the countdown after the first camera frame. */
   revealFraction: number;
   /** Block stays at full strength for this long after the first frame. */
@@ -22,8 +26,11 @@ export interface LockWordState {
 }
 
 export interface LockTitleState {
-  /** Multiplier on the 0.6 white fill. 1 until the fade, then down to 0. */
+  /** Fade curve. 1 until fadeDelayMs, then down to 0. */
   blockOpacity: number;
+  /** blockOpacity times the configured starting opacity. Applied to the element. */
+  fillOpacity: number;
+  color: string;
   words: LockWordState[];
 }
 
@@ -54,8 +61,10 @@ export function lockTitleAt(
   fadeInMs = LOCK_FADE_IN_MS,
 ): LockTitleState {
   const hidden = LOCK_WORDS.map((text) => ({ text, opacity: 0, visible: false }));
+  const color = title.color || "#FFFFFF";
+  const startOpacity = Number.isFinite(title.opacity) ? title.opacity : 1;
   if (!title.enabled || elapsedMs < 0 || !Number.isFinite(elapsedMs)) {
-    return { blockOpacity: 0, words: hidden };
+    return { blockOpacity: 0, fillOpacity: 0, color, words: hidden };
   }
   const durationMs = Math.max(0, durationSeconds) * 1000;
   const revealWindow = durationMs * title.revealFraction;
@@ -71,5 +80,5 @@ export function lockTitleAt(
     const opacity = fadeInMs <= 0 ? 1 : Math.min(1, (elapsedMs - appearAt) / fadeInMs);
     return { text, opacity, visible: opacity > 0 };
   });
-  return { blockOpacity, words };
+  return { blockOpacity, fillOpacity: blockOpacity * startOpacity, color, words };
 }

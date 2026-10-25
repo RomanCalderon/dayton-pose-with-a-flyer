@@ -1002,7 +1002,8 @@ export class KioskApp {
       elapsed = performance.now() - this.lockTitleT0;
     }
     const frame = lockTitleAt(elapsed, this.config.timing.countdownFrom, title);
-    root.style.opacity = String(frame.blockOpacity);
+    root.style.color = frame.color;
+    root.style.opacity = String(frame.fillOpacity);
     const spans = root.querySelectorAll<HTMLElement>("span");
     spans.forEach((span, index) => {
       span.style.opacity = String(frame.words[index]?.opacity ?? 0);

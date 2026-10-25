@@ -684,7 +684,7 @@ button, video { font-family: inherit; }
   letter-spacing: 0;
   text-align: right;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.6);
+  color: #ffffff;
   text-box: trim-both cap alphabetic;
   pointer-events: none;
 }

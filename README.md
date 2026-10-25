@@ -167,7 +167,7 @@ participant_id = 1001
 
 `capture.guestPlaceholder` defaults to true. The countdown and capture plate then shows `placeholders/guest.png` when the photo camera has no live frame. Set it false to draw plain black behind the athletes instead. The guest file is not resolved or loaded, so a missing file does not raise the red strip.
 
-`countdown.lockTitle` is the four-line LOCK / IN / THAT / POSE block on the right of the countdown. It is Vitesse Sans Bold at 569.92px, white at 0.6 opacity, right-aligned in a box whose right edge sits 24.72px past the stage. Nothing is drawn before the photo camera’s first frame on that screen (`t0`). If the feed is already live when the screen opens, `t0` is the screen start. LOCK appears at `t0`. The other words are spaced evenly so POSE appears at `t0` plus `revealFraction` of `timing.countdownFrom` (5s of a 10s countdown). Each word fades in over 150ms. The whole block stays at full strength for `fadeDelayMs` (1000), then fades to 0 over `fadeDurationFraction` of the countdown (from 1s to 6s when the countdown is 10s). The clock is `performance.now()`, so a redraw does not restart the fade. Set `enabled` false to hide the title.
+`countdown.lockTitle` is the four-line LOCK / IN / THAT / POSE block on the right of the countdown. It is Vitesse Sans Bold at 569.92px, right-aligned in a box whose right edge sits 24.72px past the stage. `color` defaults to `#FFFFFF` and `opacity` defaults to 1, so the first second is solid white. Nothing is drawn before the photo camera’s first frame on that screen (`t0`). If the feed is already live when the screen opens, `t0` is the screen start. LOCK appears at `t0`. The other words are spaced evenly so POSE appears at `t0` plus `revealFraction` of `timing.countdownFrom` (5s of a 10s countdown). Each word fades in over 150ms. The whole block stays at `opacity` for `fadeDelayMs` (1000), then fades linearly to 0 over `fadeDurationFraction` of the countdown (from 1s to 6s when the countdown is 10s). The clock is `performance.now()`, so a redraw does not restart the fade. Set `enabled` false to hide the title.
 
 The status and the first 500 characters of the response body are appended to `kiosk.log` and shown on the F2 overlay.
 
@@ -183,6 +183,8 @@ Defaults:
 | `uploader.extraFields` | `false` |
 | `capture.guestPlaceholder` | `true` |
 | `countdown.lockTitle.enabled` | `true` |
+| `countdown.lockTitle.color` | `#FFFFFF` |
+| `countdown.lockTitle.opacity` | `1` |
 | `countdown.lockTitle.revealFraction` | `0.5` |
 | `countdown.lockTitle.fadeDelayMs` | `1000` |
 | `countdown.lockTitle.fadeDurationFraction` | `0.5` |

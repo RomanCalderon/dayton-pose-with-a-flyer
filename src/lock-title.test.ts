@@ -4,6 +4,8 @@ import { lockCapTopOffset, lockTitleAt, type LockTitleSettings } from "./lock-ti
 
 const title: LockTitleSettings = {
   enabled: true,
+  color: "#FFFFFF",
+  opacity: 1,
   revealFraction: 0.5,
   fadeDelayMs: 1000,
   fadeDurationFraction: 0.5,
@@ -18,6 +20,20 @@ describe("lock title timing", () => {
     expect(parseConfig("{}").countdown.lockTitle).toEqual(title);
     const partial = parseConfig('{ "countdown": { "lockTitle": { "fadeDelayMs": 250 } } }');
     expect(partial.countdown.lockTitle).toEqual({ ...title, fadeDelayMs: 250 });
+  });
+
+  it("starts solid white and fades that opacity to zero", () => {
+    const atHalf = lockTitleAt(500, 10, title);
+    expect(atHalf.color).toBe("#FFFFFF");
+    expect(atHalf.blockOpacity).toBe(1);
+    expect(atHalf.fillOpacity).toBe(1);
+    expect(lockTitleAt(1000, 10, title).fillOpacity).toBe(1);
+    expect(lockTitleAt(3000, 10, title).fillOpacity).toBeCloseTo(0.6, 5);
+    expect(lockTitleAt(6000, 10, title).fillOpacity).toBe(0);
+
+    const dim = { ...title, color: "#FFEE00", opacity: 0.5 };
+    expect(lockTitleAt(500, 10, dim)).toMatchObject({ color: "#FFEE00", fillOpacity: 0.5 });
+    expect(lockTitleAt(3000, 10, dim).fillOpacity).toBeCloseTo(0.3, 5);
   });
 
   it("reveals LOCK, IN, THAT, and POSE across the first half of a 10s countdown", () => {
