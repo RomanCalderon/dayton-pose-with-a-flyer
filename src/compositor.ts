@@ -11,7 +11,6 @@ export interface AthleteLayer {
   transform: AthleteTransform;
   clipWidth: number;
   clipHeight: number;
-  gray: boolean;
   outline: boolean;
 }
 
@@ -59,7 +58,6 @@ in vec2 vUv;
 out vec4 fragColor;
 uniform sampler2D uTex;
 uniform int uMode;
-uniform int uGray;
 uniform int uMirror;
 uniform vec4 uFill;
 void main() {
@@ -76,10 +74,6 @@ void main() {
     vec4 sampleColor = texture(uTex, uv);
     rgb = sampleColor.rgb;
     a = uMode == 0 ? 1.0 : sampleColor.a;
-  }
-  if (uGray == 1) {
-    float g = dot(rgb, vec3(0.299, 0.587, 0.114));
-    rgb = vec3(g * 0.35 + 0.18);
   }
   if (uFill.a > 0.0) rgb = uFill.rgb;
   fragColor = vec4(rgb * a, a);
@@ -179,7 +173,7 @@ export class Compositor {
     if (background && sourceReady(background.source)) {
       try {
         const cover = fitRect(background.fit, background.width, background.height, this.width, this.height);
-        this.drawQuad(background.source, cover, 0, false, [0, 0, 0, 0], background.mirror);
+        this.drawQuad(background.source, cover, 0, [0, 0, 0, 0], background.mirror);
       } catch (error) {
         this.report(error);
       }
@@ -199,10 +193,10 @@ export class Compositor {
             height: bounds.height * (1 + pad * 2),
           };
           const mode = athlete.layout === "stacked-alpha" ? 1 : 2;
-          this.drawQuad(athlete.source, outlined, mode, false, [0, 0.675, 0.925, 1], false);
+          this.drawQuad(athlete.source, outlined, mode, [0, 0.675, 0.925, 1], false);
         }
         const mode = athlete.layout === "stacked-alpha" ? 1 : 2;
-        this.drawQuad(athlete.source, bounds, mode, athlete.gray, [0, 0, 0, 0], false);
+        this.drawQuad(athlete.source, bounds, mode, [0, 0, 0, 0], false);
       } catch (error) {
         this.report(error);
       }
@@ -213,7 +207,6 @@ export class Compositor {
     source: CanvasImageSource,
     bounds: Bounds,
     mode: number,
-    gray: boolean,
     fill: [number, number, number, number],
     mirror: boolean,
   ): void {
@@ -226,12 +219,10 @@ export class Compositor {
     gl.bindTexture(gl.TEXTURE_2D, texture);
     const uTex = gl.getUniformLocation(program, "uTex");
     const uMode = gl.getUniformLocation(program, "uMode");
-    const uGray = gl.getUniformLocation(program, "uGray");
     const uMirror = gl.getUniformLocation(program, "uMirror");
     const uFill = gl.getUniformLocation(program, "uFill");
     gl.uniform1i(uTex, 0);
     gl.uniform1i(uMode, mode);
-    gl.uniform1i(uGray, gray ? 1 : 0);
     gl.uniform1i(uMirror, mirror ? 1 : 0);
     gl.uniform4f(uFill, fill[0], fill[1], fill[2], fill[3]);
     const data = quadData(bounds, this.width, this.height);
@@ -437,10 +428,7 @@ const maskCanvas = typeof document === "undefined" ? null : document.createEleme
 
 function drawAthlete2d(ctx: CanvasRenderingContext2D, athlete: AthleteLayer, bounds: Bounds): void {
   if (athlete.layout !== "stacked-alpha") {
-    ctx.save();
-    if (athlete.gray) ctx.filter = "grayscale(1) brightness(0.7)";
     ctx.drawImage(athlete.source, bounds.left, bounds.top, bounds.width, bounds.height);
-    ctx.restore();
     return;
   }
   const scratch = document.createElement("canvas");
@@ -470,9 +458,7 @@ function drawAthlete2d(ctx: CanvasRenderingContext2D, athlete: AthleteLayer, bou
   if (athlete.outline) {
     ctx.drawImage(scratch, bounds.left - 8, bounds.top - 8, bounds.width + 16, bounds.height + 16);
   }
-  if (athlete.gray) ctx.filter = "grayscale(1) brightness(0.7)";
   ctx.drawImage(scratch, bounds.left, bounds.top, bounds.width, bounds.height);
-  ctx.filter = "none";
 }
 
 /** drawImage() of a WebGL canvas drops the athlete layers in Chromium. readPixels does not. */

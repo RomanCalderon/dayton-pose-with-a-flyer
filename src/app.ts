@@ -1105,7 +1105,6 @@ export class KioskApp {
         transform,
         clipWidth: clip.width,
         clipHeight: clip.height,
-        gray: adjusting && selected !== id,
         outline: adjusting && selected === id,
       }];
     });
