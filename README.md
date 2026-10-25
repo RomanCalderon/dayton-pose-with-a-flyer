@@ -48,7 +48,7 @@ The debug overlay can also simulate a scan, force the VP9-alpha clip, and show t
 3. **Countdown.** 10 down to 1. “LOCK IN THAT POSE” stays hidden until the photo camera delivers a frame, then LOCK appears and the other words follow across the first half of the countdown. The block holds for one second and fades out over the next half. At 6 the selected clips start. One athlete uses `athletes.singleSelectionSide` (`left`, `right`, or `random`). Two athletes put the first pick on the left and the second on the right. The last frame is held for `timing.freezeBeforeCaptureMs` (2 seconds) before the flash.
 4. **Adjust.** Tap an athlete (Chapel Blue outline), drag to move, pinch to scale. Plus and minus buttons follow `features.plusMinusButtons` (on in this prototype so a mouse can resize; turn them off on the real touchscreen). **TRY AGAIN** reshoots. **ALL DONE!** continues. **RESET** returns to attract.
 5. **Preview.** Branded frame over the composite. **TRY AGAIN**, **SEND!**, or **START OVER**. A fire clip is loaded on this screen and kept hidden, matching the approved layout.
-6. **Thank you.** Returns to attract after `idle.thankYouAutoReturnSeconds` (8). The “your photo will be emailed” lines are hidden in touch mode.
+6. **Thank you.** Returns to attract after `idle.thankYouAutoReturnSeconds` (8). “YOUR PHOTO WILL BE EMAILED / TO THE ADDRESS PROVIDED” is shown only when the session has a participant id from the QR scan. Touch mode, and any session that bypassed the scan, leaves that line out. The title and logo stay where they are.
 
 Idle timeouts do not run during the countdown, flash, or attract loop. Pick resets after 60 seconds. Adjust and preview reset after 90. Idle and Start Over clear the stored QR URL.
 

@@ -464,6 +464,15 @@ function chrome(screen: Screen, assets: Partial<AppConfig["assets"]> = {}, backg
   return renderChrome(viewFor(screen, assets, backgroundUrl));
 }
 
+function thanksChrome(participantId: string | null, mode: "qr" | "touch"): string {
+  const view = viewFor("thanks");
+  return renderChrome({
+    ...view,
+    config: { ...view.config, start: { mode } },
+    session: { ...view.session, participantId },
+  });
+}
+
 describe("background plate", () => {
   it("cover-fits a taller plate with the Figma vertical shift", () => {
     expect(backgroundObjectPosition(3840, 2320)).toBe("center 69.375%");
@@ -542,6 +551,32 @@ describe("background plate", () => {
     expect(touch).not.toContain("register-card");
     expect(attractVideoSource("attract/custom.mp4")).toBe("attract/custom.mp4");
     expect(attractVideoSource(" attract/loop.mp4 ")).toBe("");
+  });
+});
+
+describe("thank-you email line", () => {
+  it("shows the email lines after a scan and hides them when the scan was bypassed", () => {
+    const scanned = thanksChrome("1001", "qr");
+    expect(scanned).toContain(">THANK</span><span>YOU<");
+    expect(scanned).toContain("YOUR PHOTO WILL BE EMAILED");
+    expect(scanned).toContain("TO THE ADDRESS PROVIDED");
+    expect(scanned).not.toContain("PROVIDED.");
+    expect(scanned).toContain("thanks-logo");
+    expect(scanned).toContain("dayton-d-logo-white.svg");
+    expect(scanned).not.toContain("sponsor");
+    expect(scanned).not.toContain("mark-white");
+
+    const touch = thanksChrome(null, "touch");
+    expect(touch).toContain(">THANK</span><span>YOU<");
+    expect(touch).toContain("thanks-logo");
+    expect(touch).not.toContain("YOUR PHOTO WILL BE EMAILED");
+    expect(touch).not.toContain("TO THE ADDRESS PROVIDED");
+    expect(touch).not.toContain("sponsor");
+
+    const bypassed = thanksChrome(null, "qr");
+    expect(bypassed).toContain(">THANK</span><span>YOU<");
+    expect(bypassed).not.toContain("YOUR PHOTO WILL BE EMAILED");
+    expect(bypassed).toContain("thanks-text");
   });
 });
 

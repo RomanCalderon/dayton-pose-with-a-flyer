@@ -845,43 +845,66 @@ button, video { font-family: inherit; }
   pointer-events: none;
 }
 
-.thanks-copy {
+.thanks-row {
   position: absolute;
-  left: 120px;
-  top: 180px;
+  left: 419px;
+  top: 282px;
+  width: 3002px;
+  height: 1413px;
   z-index: 2;
   display: flex;
   align-items: center;
-  gap: 40px;
+  gap: 180px;
+  pointer-events: none;
 }
 
-.thanks-copy h1 {
+.thanks-text {
+  position: relative;
+  width: 2022px;
+  height: 1413px;
+  flex: none;
+}
+
+.thanks-title,
+.thanks-email {
   margin: 0;
-  font-family: "Saira Extra Condensed", sans-serif;
-  font-size: 340px;
-  line-height: 0.8;
+  font-family: "Vitesse Sans", Arial, "Liberation Sans", sans-serif;
   font-weight: 700;
+  font-synthesis: none;
+  letter-spacing: 0;
+  text-align: right;
+  text-transform: uppercase;
+  color: #fff;
+  text-box: trim-both cap alphabetic;
+  white-space: nowrap;
 }
 
-.thanks-copy .mark-white {
-  width: 420px;
-  height: 360px;
-  font-size: 320px;
-}
-
-.thanks-copy .mark-white::before { font-size: 320px; }
-
-.thanks-sub {
+.thanks-title {
   position: absolute;
-  left: 140px;
-  top: 980px;
-  z-index: 2;
-  margin: 0;
-  font-family: "Saira Extra Condensed", sans-serif;
-  font-size: 64px;
-  font-weight: 700;
-  letter-spacing: 1px;
-  line-height: 1.05;
+  top: 0;
+  right: 0;
+  font-size: 569.921px;
+  line-height: 500px;
+}
+
+.thanks-title span,
+.thanks-email span {
+  display: block;
+}
+
+.thanks-email {
+  position: absolute;
+  top: 1091px;
+  right: 0;
+  font-size: 100px;
+  line-height: 1.2;
+}
+
+.thanks-logo {
+  width: 800px;
+  height: 500.912px;
+  flex: none;
+  display: block;
 }
 
 .still-there {

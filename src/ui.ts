@@ -422,16 +422,20 @@ function renderPreview(view: ViewModel): string {
 }
 
 function renderThanks(view: ViewModel): string {
-  const emailed = view.config.start.mode === "qr"
-    ? `<p class="thanks-sub">YOUR PHOTO WILL BE EMAILED<br>TO THE ADDRESS PROVIDED</p>`
+  const participantId = view.session.participantId?.trim() ?? "";
+  const emailed = participantId
+    ? `<p class="thanks-email"><span>YOUR PHOTO WILL BE EMAILED</span><span>TO THE ADDRESS PROVIDED</span></p>`
     : "";
+  const logo = view.assetUrl("branding/dayton-d-logo-white.svg");
   return `<section class="screen thanks">
     ${background(view, false)}
-    <div class="thanks-copy">
-      <h1>THANK<br>YOU</h1>
-      ${mark("white")}
+    <div class="thanks-row">
+      <div class="thanks-text">
+        <h1 class="thanks-title"><span>THANK</span><span>YOU</span></h1>
+        ${emailed}
+      </div>
+      <img class="thanks-logo" alt="" src="${escapeHtml(logo)}" width="800" height="501" />
     </div>
-      ${emailed}
   </section>`;
 }
 
