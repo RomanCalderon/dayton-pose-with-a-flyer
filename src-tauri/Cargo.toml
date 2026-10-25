@@ -1,6 +1,6 @@
 [package]
 name = "pose-with-a-flyer"
-version = "0.1.16",
+version = "0.1.16"
 description = "Pose with a Flyer arena photo-op kiosk prototype"
 authors = ["Pose with a Flyer prototype"]
 edition = "2021"
