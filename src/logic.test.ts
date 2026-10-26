@@ -524,10 +524,11 @@ describe("background plate", () => {
     expect(countdown).toContain("lookhere-badge.svg");
     expect(countdown).toContain("look-count");
     expect(countdown).toContain(">10<");
-    expect(countdown).toContain("START OVER");
-    expect(countdown).toContain('data-action="start-over"');
-    expect(countdown).not.toContain("GO BACK");
-    expect(countdown).not.toContain("go-back");
+    expect(countdown).toContain("pick-back");
+    expect(countdown).toContain("GO BACK");
+    expect(countdown).toContain('data-action="go-back"');
+    expect(countdown).not.toContain("START OVER");
+    expect(countdown).not.toContain("start-over");
     const adjust = chrome("adjust");
     expect(adjust).toContain("TAP &amp; HOLD PLAYER TO ADJUST");
     expect(adjust).toContain("dayton-d-logo-white.svg");

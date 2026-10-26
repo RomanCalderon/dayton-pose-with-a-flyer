@@ -351,7 +351,7 @@ function renderCountdown(view: ViewModel): string {
       <div class="look-count">${second}</div>
     </div>
     ${lock}
-    <button class="pick-back" type="button" data-action="start-over">START OVER</button>
+    <button class="pick-back" type="button" data-action="go-back">GO BACK</button>
     ${flash}
   </section>`;
 }
