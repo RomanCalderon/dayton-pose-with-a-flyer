@@ -44,10 +44,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.ref_type == 'tag' && github.ref_name || 'v0.1.16-prototype' }}
-          releaseName: Pose with a Flyer ${{ github.ref_type == 'tag' && github.ref_name || 'v0.1.16-prototype' }}
+          tagName: ${{ github.ref_type == 'tag' && github.ref_name || 'v0.1.17-prototype' }}
+          releaseName: Pose with a Flyer ${{ github.ref_type == 'tag' && github.ref_name || 'v0.1.17-prototype' }}
           releaseBody: |
-            Prototype of the Pose with a Flyer kiosk. This build draws a jersey badge for #0 and leaves mascots without one, and headshots fill the round button instead of stopping on a straight crop inside the circle. It still keeps unselected athletes in full color on the adjust screen, matches the preview and Thank You screens to their Figma frames, and shows the email lines only when the session has a participant id from the QR scan.
+            Prototype of the Pose with a Flyer kiosk. This build matches the capture look-here badge and the tap-to-adjust panel to their Figma frames. The capture screen’s lower-left button is GO BACK. The edit screen’s corner button is START OVER. LOCK IN THAT POSE reveals in the first fifth of the countdown, and the fade-out still runs from 1s to 6s on a 10s countdown. It still draws a jersey badge for #0, clips headshots on the circle only, keeps unselected athletes in full color on the adjust screen, and matches the preview and Thank You screens to their Figma frames.
 
             The NSIS installer is the one to run. It is unsigned, so Windows SmartScreen will warn until you choose More info, then Run anyway. WebView2 is already part of Windows 11; the installer can also download the Evergreen bootstrapper.
 
@@ -79,5 +79,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          $tag = if ("${{ github.ref_type }}" -eq "tag") { "${{ github.ref_name }}" } else { "v0.1.16-prototype" }
+          $tag = if ("${{ github.ref_type }}" -eq "tag") { "${{ github.ref_name }}" } else { "v0.1.17-prototype" }
           gh release upload $tag $env:PORTABLE_ZIP --clobber
