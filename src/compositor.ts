@@ -103,15 +103,19 @@ export class Compositor {
   readonly width: number;
   readonly height: number;
 
-  constructor(canvas: HTMLCanvasElement, width: number, height: number) {
+  /** Athletes-only layer. Clears transparent so the lock title shows through. */
+  private readonly transparent: boolean;
+
+  constructor(canvas: HTMLCanvasElement, width: number, height: number, options?: { transparent?: boolean }) {
     this.canvas = canvas;
     this.width = width;
     this.height = height;
+    this.transparent = Boolean(options?.transparent);
     canvas.width = width;
     canvas.height = height;
     const gl = canvas.getContext("webgl2", {
       premultipliedAlpha: true,
-      alpha: false,
+      alpha: this.transparent,
       antialias: true,
       preserveDrawingBuffer: true,
     });
@@ -149,24 +153,33 @@ export class Compositor {
   }
 
   draw(background: BackgroundLayer | null, athletes: AthleteLayer[]): void {
+    this.paint(background, athletes, false);
+  }
+
+  /** Player cutouts only, on a transparent canvas that can sit above the lock title. */
+  drawAthletes(athletes: AthleteLayer[]): void {
+    this.paint(null, athletes, true);
+  }
+
+  private paint(background: BackgroundLayer | null, athletes: AthleteLayer[], clearTransparent: boolean): void {
     try {
       if (this.gl && this.program) {
         if (this.gl.isContextLost()) return;
-        this.drawGl(background, athletes);
+        this.drawGl(background, athletes, clearTransparent);
         return;
       }
-      this.draw2d(background, athletes);
+      this.draw2d(background, athletes, clearTransparent);
     } catch (error) {
       this.report(error);
     }
   }
 
-  private drawGl(background: BackgroundLayer | null, athletes: AthleteLayer[]): void {
+  private drawGl(background: BackgroundLayer | null, athletes: AthleteLayer[], clearTransparent: boolean): void {
     const gl = this.gl;
     const program = this.program;
     if (!gl || !program) return;
     gl.viewport(0, 0, this.width, this.height);
-    gl.clearColor(0, 0, 0, 1);
+    gl.clearColor(0, 0, 0, clearTransparent ? 0 : 1);
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.useProgram(program);
     gl.disable(gl.BLEND);
@@ -306,13 +319,15 @@ export class Compositor {
     this.onError?.(error);
   }
 
-  private draw2d(background: BackgroundLayer | null, athletes: AthleteLayer[]): void {
+  private draw2d(background: BackgroundLayer | null, athletes: AthleteLayer[], clearTransparent: boolean): void {
     const ctx = this.fallback ?? this.canvas.getContext("2d");
     if (!ctx) return;
     this.fallback = ctx;
     ctx.clearRect(0, 0, this.width, this.height);
-    ctx.fillStyle = "#000";
-    ctx.fillRect(0, 0, this.width, this.height);
+    if (!clearTransparent) {
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, this.width, this.height);
+    }
     if (background && sourceReady(background.source)) {
       try {
         const cover = fitRect(background.fit, background.width, background.height, this.width, this.height);

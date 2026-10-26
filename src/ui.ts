@@ -1,5 +1,5 @@
 import { DEFAULT_CONFIG } from "./config";
-import { resolveClipSize, transformBounds, type ClipSize } from "./placement";
+import { plusMinusPosition, resolveClipSize, transformBounds, type ClipSize } from "./placement";
 import {
   athleteArcName,
   estimateArcAdvance,
@@ -382,13 +382,8 @@ function plusMinus(view: ViewModel): string {
   if (!athlete || !transform || !side) return "";
   const clip = clipSize(view, athlete.clips[side]);
   const bounds = transformBounds(transform, clip);
-  const sx = STAGE_W / view.config.output.width;
-  const sy = STAGE_H / view.config.output.height;
-  const left = (bounds.left + bounds.width / 2) * sx;
-  const block = 272;
-  const foot = (bounds.top + bounds.height * 0.78) * sy;
-  const top = Math.max(160, Math.min(foot, STAGE_H - 220 - block));
-  return `<div class="pm" style="left:${left}px;top:${top}px">
+  const place = plusMinusPosition(bounds, view.config.output.width, view.config.output.height, STAGE_W, STAGE_H);
+  return `<div class="pm" style="left:${trimNum(place.left)}px;top:${trimNum(place.top)}px">
     <button class="pm-btn" data-action="scale" data-dir="1" aria-label="Larger">+</button>
     <button class="pm-btn" data-action="scale" data-dir="-1" aria-label="Smaller">−</button>
   </div>`;

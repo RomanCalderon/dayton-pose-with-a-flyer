@@ -120,12 +120,15 @@ export class KioskApp {
   private roster: RosterFile | null = null;
   private session: Session = createSession("mens");
   private compositor!: Compositor;
+  private players!: Compositor;
   private viewport!: HTMLElement;
   private stage!: HTMLElement;
   private appVersion = "";
   private fitGeneration = 0;
   private chrome!: HTMLElement;
+  private lockLayer!: HTMLElement;
   private canvas!: HTMLCanvasElement;
+  private playerCanvas!: HTMLCanvasElement;
   private mediaPool!: HTMLElement;
   private debugHost!: HTMLElement;
   private statusHost!: HTMLElement;
@@ -194,11 +197,13 @@ export class KioskApp {
   constructor(private readonly root: HTMLElement) {}
 
   async start(): Promise<void> {
-    this.root.innerHTML = `<div id="viewport"><div id="stage"><canvas id="gl"></canvas><div id="chrome"></div><div id="media-pool" class="media-pool"></div></div></div>`;
+    this.root.innerHTML = `<div id="viewport"><div id="stage"><canvas id="gl"></canvas><div id="lock-layer"></div><canvas id="gl-players"></canvas><div id="chrome"></div><div id="media-pool" class="media-pool"></div></div></div>`;
     this.viewport = this.root.querySelector("#viewport") as HTMLElement;
     this.stage = this.root.querySelector("#stage") as HTMLElement;
     this.chrome = this.root.querySelector("#chrome") as HTMLElement;
+    this.lockLayer = this.root.querySelector("#lock-layer") as HTMLElement;
     this.canvas = this.root.querySelector("#gl") as HTMLCanvasElement;
+    this.playerCanvas = this.root.querySelector("#gl-players") as HTMLCanvasElement;
     this.mediaPool = this.root.querySelector("#media-pool") as HTMLElement;
     this.debugHost = document.createElement("div");
     this.debugHost.id = "debug-host";
@@ -214,6 +219,8 @@ export class KioskApp {
     this.session = createSession(this.config.roster.default);
     this.compositor = new Compositor(this.canvas, this.config.output.width, this.config.output.height);
     this.compositor.onError = (error) => this.logError("webgl", error);
+    this.players = new Compositor(this.playerCanvas, this.config.output.width, this.config.output.height, { transparent: true });
+    this.players.onError = (error) => this.logError("webgl-players", error);
     this.logLine(
       `boot version=${this.appVersion} config=${this.paths.configPath} assets=${this.paths.assetRoot || "(none)"} bundled=${this.paths.bundledAssetRoot || "(none)"}`,
     );
@@ -547,6 +554,8 @@ export class KioskApp {
     const view = this.view();
     this.noteRosterOverflow();
     this.chrome.innerHTML = renderChrome(view);
+    const lock = this.chrome.querySelector(".lock");
+    this.lockLayer.replaceChildren(...(lock ? [lock] : []));
     this.syncLockTitle();
     this.schedulePickNameFit();
     const mode = canvasMode(this.session.screen);
@@ -976,6 +985,7 @@ export class KioskApp {
     const background = this.backgroundLayer();
     const athletes = this.athleteLayers();
     this.compositor.draw(background, athletes);
+    if (!this.playerCanvas.classList.contains("mode-hidden")) this.players.drawAthletes(athletes);
     this.syncLockTitle();
   }
 
@@ -986,7 +996,7 @@ export class KioskApp {
   /** Wall-clock lock title. Rewriting the chrome does not restart the fade. */
   private syncLockTitle(): void {
     if (this.session.screen !== "countdown") return;
-    const root = this.chrome.querySelector<HTMLElement>(".lock");
+    const root = this.lockLayer.querySelector<HTMLElement>(".lock");
     if (!root) return;
     this.applyLockCapFallback(root);
     const title = this.config.countdown.lockTitle;
@@ -1426,6 +1436,9 @@ export class KioskApp {
 
   private placeCanvas(mode: "hidden" | "full" | "preview"): void {
     this.canvas.className = `mode-${mode}`;
+    const showPlayers = mode === "full";
+    this.playerCanvas.className = showPlayers ? "mode-full" : "mode-hidden";
+    if (!showPlayers) this.players.drawAthletes([]);
     if (mode !== "preview") {
       this.canvas.style.left = "";
       this.canvas.style.top = "";

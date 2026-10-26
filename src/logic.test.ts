@@ -6,6 +6,11 @@ import {
   clampTransform,
   defaultTransform,
   hitTest,
+  plusMinusPosition,
+  PM_BUTTON,
+  PM_EDGE_GAP,
+  PM_STACK_GAP,
+  transformBounds,
   measuredColorSize,
   resolveClipLayout,
   resolveClipSize,
@@ -240,6 +245,39 @@ describe("placement and upload", () => {
     const clamped = clampTransform({ x: 99999, y: -99999, scale: 9 }, 2560, 1440);
     expect(clamped.scale).toBeLessThanOrEqual(2.8);
     expect(clamped.x).toBeLessThanOrEqual(2560 * 1.2);
+  });
+
+  it("parks the size buttons on the middle of the player edge", () => {
+    const clip = { width: 400, height: 800 };
+    const transform = { x: 800, y: 720, scale: 1 };
+    const bounds = transformBounds(transform, clip);
+    const place = plusMinusPosition(bounds, 2560, 1440, 3840, 2160);
+    const scale = 3840 / 2560;
+    const boxRight = (bounds.left + bounds.width) * scale;
+    const boxMidY = (bounds.top + bounds.height / 2) * scale;
+    const column = PM_BUTTON * 2 + PM_STACK_GAP;
+    expect(place.side).toBe("right");
+    expect(place.left).toBeCloseTo(boxRight + PM_EDGE_GAP, 5);
+    expect(place.top + column / 2).toBeCloseTo(boxMidY, 5);
+    expect(place.left).toBeGreaterThanOrEqual(0);
+    expect(place.left + PM_BUTTON).toBeLessThanOrEqual(3840);
+    expect(place.top).toBeGreaterThanOrEqual(0);
+    expect(place.top + column).toBeLessThanOrEqual(2160);
+
+    const grown = plusMinusPosition(transformBounds({ ...transform, scale: 1.4 }, clip), 2560, 1440, 3840, 2160);
+    expect(grown.left).toBeGreaterThan(place.left);
+    expect(grown.side).toBe("right");
+
+    const shifted = plusMinusPosition(transformBounds({ ...transform, x: 900, y: 800 }, clip), 2560, 1440, 3840, 2160);
+    expect(shifted.left).toBeGreaterThan(place.left);
+    expect(shifted.top).toBeGreaterThan(place.top);
+
+    const edge = plusMinusPosition(transformBounds({ x: 2500, y: 720, scale: 1 }, clip), 2560, 1440, 3840, 2160);
+    const edgeLeft = transformBounds({ x: 2500, y: 720, scale: 1 }, clip).left * scale;
+    expect(edge.side).toBe("left");
+    expect(edge.left + PM_BUTTON + PM_EDGE_GAP).toBeCloseTo(edgeLeft, 5);
+    expect(edge.left).toBeGreaterThanOrEqual(0);
+    expect(edge.top + column).toBeLessThanOrEqual(2160);
   });
 
   it("sizes a real VP9 frame when clipMeta is omitted", () => {
