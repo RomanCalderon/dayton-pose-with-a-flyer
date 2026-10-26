@@ -106,14 +106,15 @@
   },
   "countdown": {
     // LOCK appears on the first live photo frame. The other words follow across
-    // revealFraction of the countdown. color is solid for the first fadeDelayMs
-    // at opacity, then the block fades across fadeDurationFraction of the countdown.
-    // On a 10s countdown that is LOCK at 0s, POSE at 5s, and a fade from 1s to 6s.
+    // revealFraction of the countdown. Each word fades in over 60ms. color stays
+    // solid for fadeDelayMs at opacity, then the block fades across
+    // fadeDurationFraction of the countdown (not of the reveal). On a 10s
+    // countdown that is LOCK at 0s, POSE at 2s, and a fade from 1s to 6s.
     "lockTitle": {
       "enabled": true,
       "color": "#FFFFFF",
       "opacity": 1,
-      "revealFraction": 0.5,
+      "revealFraction": 0.2,
       "fadeDelayMs": 1000,
       "fadeDurationFraction": 0.5
     }

@@ -577,7 +577,9 @@ button, video { font-family: inherit; }
   cursor: default;
 }
 
-.preview .pick-back {
+.preview .pick-back,
+.countdown .pick-back,
+.adjust .pick-back {
   left: 40px;
   top: 2080px;
 }
@@ -599,28 +601,39 @@ button, video { font-family: inherit; }
 
 .dock {
   position: absolute;
-  left: 50%;
-  bottom: 48px;
+  left: 853.5px;
+  top: 1880px;
+  width: 2134px;
+  height: 200px;
   z-index: 5;
   display: flex;
+  flex-direction: row;
   align-items: center;
-  gap: 22px;
-  height: 132px;
-  padding: 16px 22px 16px 28px;
+  box-sizing: border-box;
+  padding: 70px;
+  gap: 100px;
+  border: 0;
   border-radius: 999px;
-  background: var(--dock);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
-  transform: translateX(-50%);
+  background: #002554;
+  box-shadow: none;
+  overflow: visible;
 }
 
 .dock-preview { bottom: 230px; }
 
 .dock-label {
-  font-family: "Saira Extra Condensed", sans-serif;
-  font-size: 42px;
+  flex: none;
+  margin: 0;
+  padding: 0;
+  font-family: "Vitesse Sans", Arial, "Liberation Sans", sans-serif;
   font-weight: 700;
-  letter-spacing: 0.6px;
-  padding: 0 12px 0 18px;
+  font-synthesis: none;
+  font-size: 60px;
+  line-height: 1.03;
+  letter-spacing: 0;
+  color: #fff;
+  text-transform: uppercase;
+  text-box: trim-both cap alphabetic;
   white-space: nowrap;
 }
 
@@ -680,38 +693,38 @@ button, video { font-family: inherit; }
 
 .look {
   position: absolute;
-  left: 50%;
-  top: 36px;
-  transform: translateX(-50%);
-  width: 340px;
-  height: 390px;
+  left: 1753.61px;
+  top: 60px;
+  width: 332.77px;
+  height: 361.81px;
   z-index: 4;
+  pointer-events: none;
 }
 
-.look-svg {
-  width: 340px;
-  height: 340px;
-  overflow: visible;
-}
-
-.look-label {
-  font-family: "Saira", sans-serif;
+.look-badge {
+  display: block;
+  width: 332.77px;
+  height: 361.81px;
 }
 
 .look-count {
   position: absolute;
   left: 50%;
-  bottom: 8px;
+  top: 316.81px;
   transform: translateX(-50%);
-  font-family: "Saira Extra Condensed", sans-serif;
-  font-size: 86px;
+  margin: 0;
+  padding: 0;
+  background: none;
+  font-family: "Vitesse Sans", Arial, "Liberation Sans", sans-serif;
   font-weight: 700;
-  line-height: 0.85;
-  background: #000;
-  color: white;
-  min-width: 90px;
-  padding: 0 10px 6px;
+  font-synthesis: none;
+  font-size: 63.745px;
+  line-height: normal;
+  letter-spacing: 0;
+  color: #fff;
   text-align: center;
+  text-box: trim-both cap alphabetic;
+  white-space: nowrap;
 }
 
 .lock {

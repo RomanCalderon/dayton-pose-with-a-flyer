@@ -116,6 +116,7 @@ export function referencedAssetPaths(roster: RosterFile | null, config: AppConfi
     config.assets.takeawayFrame,
     config.assets.fireVideo,
     "branding/dayton-d-logo-red.svg",
+    "branding/lookhere-badge.svg",
     "branding/qr.png",
   ];
   if (config.capture.guestPlaceholder) files.push(GUEST_PLACEHOLDER_FILE);

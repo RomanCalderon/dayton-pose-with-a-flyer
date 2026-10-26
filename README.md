@@ -45,8 +45,8 @@ The debug overlay can also simulate a scan, force the VP9-alpha clip, and show t
 
 1. **Attract.** The loop plays under the “Pose with a Flyer” panel. In `qr` mode the side-camera well scans for an `http` or `https` URL and stores it as the participant URL. In `touch` mode the QR card is replaced by a full-screen **TOUCH TO START** control. A missing side camera blanks that well and shows `CAM-QR-01`.
 2. **Pick players.** Up to two athletes. Men's roster is the default. **SWAP TEAM** switches to women's and clears the selection, so the two teams are not mixed. **LET'S GO!** enables after one pick.
-3. **Countdown.** 10 down to 1. “LOCK IN THAT POSE” stays hidden until the photo camera delivers a frame, then LOCK appears and the other words follow across the first half of the countdown. The block holds for one second and fades out over the next half. At 6 the selected clips start. One athlete uses `athletes.singleSelectionSide` (`left`, `right`, or `random`). Two athletes put the first pick on the left and the second on the right. The last frame is held for `timing.freezeBeforeCaptureMs` (2 seconds) before the flash.
-4. **Adjust.** Tap an athlete (Chapel Blue outline), drag to move, pinch to scale. Plus and minus buttons follow `features.plusMinusButtons` (on in this prototype so a mouse can resize; turn them off on the real touchscreen). **TRY AGAIN** reshoots. **ALL DONE!** continues. **RESET** returns to attract.
+3. **Countdown.** 10 down to 1, shown in the look-here badge. The badge stays up for that count and is covered when the flash fills the screen. **START OVER** resets to attract. “LOCK IN THAT POSE” stays hidden until the photo camera delivers a frame, then LOCK appears and the other words follow across the first fifth of the countdown. Each word fades in over 60ms. The block holds for one second and fades out over the next five seconds. At 6 the selected clips start. One athlete uses `athletes.singleSelectionSide` (`left`, `right`, or `random`). Two athletes put the first pick on the left and the second on the right. The last frame is held for `timing.freezeBeforeCaptureMs` (2 seconds) before the flash.
+4. **Adjust.** Tap an athlete (Chapel Blue outline), drag to move, pinch to scale. Plus and minus buttons follow `features.plusMinusButtons` (on in this prototype so a mouse can resize; turn them off on the real touchscreen). **TRY AGAIN** reshoots. **ALL DONE!** continues. **START OVER** returns to attract.
 5. **Preview.** Branded frame over the composite. **TRY AGAIN**, **SEND!**, or **START OVER**. A fire clip is loaded on this screen and kept hidden, matching the approved layout.
 6. **Thank you.** Returns to attract after `idle.thankYouAutoReturnSeconds` (8). “YOUR PHOTO WILL BE EMAILED / TO THE ADDRESS PROVIDED” is shown only when the session has a participant id from the QR scan. Touch mode, and any session that bypassed the scan, leaves that line out. The title and logo stay where they are.
 
@@ -104,7 +104,8 @@ Everything the screens read lives under `assets/`. A copy in the custom or machi
 | `athletes/<id>_left.webm` | Optional VP9 with alpha. Used when the mp4 fails, or when the debug overlay prefers WebM |
 | `branding/background.jpg` | Static plate behind attract, pick, preview, and thank-you. Cover-fit. A 16:9 file fills the stage. A taller file is centered and shifted up 31px, matching the Figma crop of the 3840×2320 fill. Countdown and tap-to-adjust keep the live camera instead |
 | `branding/dayton-d-logo-red.svg` | Red D on the attract register card |
-| `branding/dayton-d-logo-white.svg` | White D on the pick-screen panel and the preview approval panel |
+| `branding/dayton-d-logo-white.svg` | White D on the pick-screen panel, the adjust panel, and the preview approval panel |
+| `branding/lookhere-badge.svg` | Countdown “stand in center & look here” badge. The live number is drawn on top of it |
 | `branding/qr.png` | Registration QR with the `QRCO.DE/FLYERPOSE` caption baked in, drawn at 216.43×268.8 |
 | `fonts/Vitesse-Bold.woff2`, `.woff`, `.otf`, or `.ttf` | Optional machine override for Vitesse Bold. The build already embeds `src/fonts/Vitesse-Bold.otf` |
 | `attract/loop.mp4` | Legacy generated picture of the old diagonal screen. The app does not play this path. Any other `assets.attractVideo` path still plays only on the attract screen, above the plate |
@@ -167,7 +168,7 @@ participant_id = 1001
 
 `capture.guestPlaceholder` defaults to true. The countdown and capture plate then shows `placeholders/guest.png` when the photo camera has no live frame. Set it false to draw plain black behind the athletes instead. The guest file is not resolved or loaded, so a missing file does not raise the red strip.
 
-`countdown.lockTitle` is the four-line LOCK / IN / THAT / POSE block on the right of the countdown. It is Vitesse Sans Bold at 569.92px, right-aligned in a box whose right edge sits 24.72px past the stage. `color` defaults to `#FFFFFF` and `opacity` defaults to 1, so the first second is solid white. Nothing is drawn before the photo camera’s first frame on that screen (`t0`). If the feed is already live when the screen opens, `t0` is the screen start. LOCK appears at `t0`. The other words are spaced evenly so POSE appears at `t0` plus `revealFraction` of `timing.countdownFrom` (5s of a 10s countdown). Each word fades in over 150ms. The whole block stays at `opacity` for `fadeDelayMs` (1000), then fades linearly to 0 over `fadeDurationFraction` of the countdown (from 1s to 6s when the countdown is 10s). The clock is `performance.now()`, so a redraw does not restart the fade. Set `enabled` false to hide the title.
+`countdown.lockTitle` is the four-line LOCK / IN / THAT / POSE block on the right of the countdown. It is Vitesse Sans Bold at 569.92px, right-aligned in a box whose right edge sits 24.72px past the stage. `color` defaults to `#FFFFFF` and `opacity` defaults to 1, so the first second is solid white. Nothing is drawn before the photo camera’s first frame on that screen (`t0`). If the feed is already live when the screen opens, `t0` is the screen start. LOCK appears at `t0`. The other words are spaced evenly so POSE appears at `t0` plus `revealFraction` of `timing.countdownFrom` (2s of a 10s countdown). Each word fades in over 60ms. The whole block stays at `opacity` for `fadeDelayMs` (1000), then fades linearly to 0 over `fadeDurationFraction` of the countdown. That fraction is of the countdown length, not of the reveal, so the fade still runs from 1s to 6s when the countdown is 10s. The clock is `performance.now()`, so a redraw does not restart the fade. Set `enabled` false to hide the title.
 
 The status and the first 500 characters of the response body are appended to `kiosk.log` and shown on the F2 overlay.
 
@@ -185,7 +186,7 @@ Defaults:
 | `countdown.lockTitle.enabled` | `true` |
 | `countdown.lockTitle.color` | `#FFFFFF` |
 | `countdown.lockTitle.opacity` | `1` |
-| `countdown.lockTitle.revealFraction` | `0.5` |
+| `countdown.lockTitle.revealFraction` | `0.2` |
 | `countdown.lockTitle.fadeDelayMs` | `1000` |
 | `countdown.lockTitle.fadeDurationFraction` | `0.5` |
 | `qr.participantId.from` | `auto` |

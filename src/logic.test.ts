@@ -419,7 +419,7 @@ describe("defaults", () => {
       enabled: true,
       color: "#FFFFFF",
       opacity: 1,
-      revealFraction: 0.5,
+      revealFraction: 0.2,
       fadeDelayMs: 1000,
       fadeDurationFraction: 0.5,
     });
@@ -521,6 +521,26 @@ describe("background plate", () => {
     expect(countdown).toContain(">IN<");
     expect(countdown).toContain(">THAT<");
     expect(countdown).toContain(">POSE<");
+    expect(countdown).toContain("lookhere-badge.svg");
+    expect(countdown).toContain("look-count");
+    expect(countdown).toContain(">10<");
+    expect(countdown).toContain("START OVER");
+    expect(countdown).toContain('data-action="start-over"');
+    expect(countdown).not.toContain("GO BACK");
+    expect(countdown).not.toContain("go-back");
+    const adjust = chrome("adjust");
+    expect(adjust).toContain("TAP &amp; HOLD PLAYER TO ADJUST");
+    expect(adjust).toContain("dayton-d-logo-white.svg");
+    expect(adjust).toContain("pick-swap");
+    expect(adjust).toContain("TRY AGAIN");
+    expect(adjust).toContain("pick-go is-ready");
+    expect(adjust).toContain("ALL DONE!");
+    expect(adjust).toContain("START OVER");
+    expect(adjust).toContain('data-action="start-over"');
+    expect(adjust).not.toContain("RESET");
+    expect(adjust).not.toContain("pill");
+    expect(adjust).not.toContain("mark-white");
+    expect(adjust).not.toContain("dock-preview");
     expect(chrome("attract", {}, null)).not.toContain("bg-photo");
     expect(chrome("attract", {}, null)).toContain("bg-navy");
     const withLoop = chrome("attract", { attractVideo: "attract/custom.mp4" });
@@ -602,6 +622,7 @@ describe("asset search", () => {
       assets: { ...base.assets, attractVideo: "attract/loop.mp4" },
     });
     expect(files).toContain("branding/dayton-d-logo-red.svg");
+    expect(files).toContain("branding/lookhere-badge.svg");
     expect(files).toContain("branding/qr.png");
     expect(files).toContain("branding/background.jpg");
     expect(files).toContain("frames/takeaway_v1.png");

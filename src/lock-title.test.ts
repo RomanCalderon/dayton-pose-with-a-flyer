@@ -6,7 +6,7 @@ const title: LockTitleSettings = {
   enabled: true,
   color: "#FFFFFF",
   opacity: 1,
-  revealFraction: 0.5,
+  revealFraction: 0.2,
   fadeDelayMs: 1000,
   fadeDurationFraction: 0.5,
 };
@@ -36,29 +36,29 @@ describe("lock title timing", () => {
     expect(lockTitleAt(3000, 10, dim).fillOpacity).toBeCloseTo(0.3, 5);
   });
 
-  it("reveals LOCK, IN, THAT, and POSE across the first half of a 10s countdown", () => {
+  it("reveals LOCK, IN, THAT, and POSE across the first fifth of a 10s countdown", () => {
     expect(lockTitleAt(-1, 10, title).blockOpacity).toBe(0);
     expect(opacities(-1)).toEqual([0, 0, 0, 0]);
 
     const start = lockTitleAt(0, 10, title);
     expect(start.blockOpacity).toBe(1);
     expect(start.words.map((word) => word.visible)).toEqual([false, false, false, false]);
-    expect(opacities(75)).toEqual([0.5, 0, 0, 0]);
-    expect(opacities(150)).toEqual([1, 0, 0, 0]);
+    expect(opacities(30)).toEqual([0.5, 0, 0, 0]);
+    expect(opacities(60)).toEqual([1, 0, 0, 0]);
     expect(lockTitleAt(1000, 10, title).blockOpacity).toBe(1);
-    expect(opacities(1000)).toEqual([1, 0, 0, 0]);
+    expect(opacities(1000)).toEqual([1, 1, 0, 0]);
+
+    const atPose = lockTitleAt(2000, 10, title);
+    expect(atPose.blockOpacity).toBeCloseTo(0.8, 5);
+    expect(atPose.words[2].opacity).toBe(1);
+    expect(atPose.words[3].opacity).toBe(0);
+    expect(atPose.words[3].visible).toBe(false);
+    expect(lockTitleAt(2060, 10, title).words[3]).toMatchObject({ opacity: 1, visible: true });
 
     const atThree = lockTitleAt(3000, 10, title);
     expect(atThree.blockOpacity).toBeCloseTo(0.6, 5);
-    expect(opacities(3000)).toEqual([1, 1, 0, 0]);
-    expect(atThree.words.map((word) => word.visible)).toEqual([true, true, false, false]);
-
-    const atFive = lockTitleAt(5000, 10, title);
-    expect(atFive.blockOpacity).toBeCloseTo(0.2, 5);
-    expect(atFive.words[2].opacity).toBe(1);
-    expect(atFive.words[3].opacity).toBe(0);
-    expect(atFive.words[3].visible).toBe(false);
-    expect(lockTitleAt(5150, 10, title).words[3]).toMatchObject({ opacity: 1, visible: true });
+    expect(opacities(3000)).toEqual([1, 1, 1, 1]);
+    expect(atThree.words.every((word) => word.visible)).toBe(true);
 
     const done = lockTitleAt(6000, 10, title);
     expect(done.blockOpacity).toBe(0);

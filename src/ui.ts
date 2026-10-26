@@ -191,10 +191,6 @@ function background(view: ViewModel, withVideo: boolean): string {
   </div>`;
 }
 
-function mark(tone: "red" | "white" | "navy"): string {
-  return `<span class="mark mark-${tone}" aria-hidden="true">D</span>`;
-}
-
 function renderAttract(view: ViewModel): string {
   const touch = view.config.start.mode === "touch";
   const hint = view.config.debug.showHints
@@ -347,40 +343,33 @@ function renderCountdown(view: ViewModel): string {
   const lock = view.config.countdown.lockTitle.enabled
     ? `<div class="lock" style="opacity:0">${LOCK_WORDS.map((word) => `<span style="opacity:0">${word}</span>`).join("")}</div>`
     : "";
+  const badge = view.assetUrl("branding/lookhere-badge.svg");
   return `<section class="screen countdown">
     ${error}
     <div class="look">
-      <svg class="look-svg" viewBox="0 0 300 300" aria-hidden="true">
-        <defs>
-          <path id="look-arc" d="M52,168 A98,98 0 0,0 248,168" />
-        </defs>
-        <circle cx="150" cy="156" r="126" fill="none" stroke="#ffffff" stroke-width="10"/>
-        <text class="look-label" fill="#ffffff" font-size="15" font-weight="700" letter-spacing="1.4">
-          <textPath href="#look-arc" startOffset="50%" text-anchor="middle">STAND IN CENTER &amp; LOOK HERE</textPath>
-        </text>
-        <circle cx="150" cy="168" r="54" fill="#00ACEC"/>
-        <ellipse cx="150" cy="168" rx="34" ry="20" fill="none" stroke="#ffffff" stroke-width="5"/>
-        <circle cx="150" cy="168" r="9" fill="#ffffff"/>
-      </svg>
+      <img class="look-badge" alt="" src="${escapeHtml(badge)}" width="332.77" height="361.81" />
       <div class="look-count">${second}</div>
     </div>
     ${lock}
-    <button class="corner-btn corner-light" data-action="go-back">GO BACK</button>
+    <button class="pick-back" type="button" data-action="start-over">START OVER</button>
     ${flash}
   </section>`;
 }
 
 function renderAdjust(view: ViewModel): string {
   const controls = view.config.features.plusMinusButtons ? plusMinus(view) : "";
+  const logo = view.assetUrl("branding/dayton-d-logo-white.svg");
   return `<section class="screen adjust">
     ${controls}
     <div class="dock">
       <div class="dock-label">TAP &amp; HOLD PLAYER TO ADJUST</div>
-      ${mark("white")}
-      <button class="pill pill-ghost" data-action="try-again">TRY AGAIN</button>
-      <button class="pill pill-go" data-action="all-done">ALL DONE!</button>
+      <img class="pick-logo" alt="" src="${escapeHtml(logo)}" width="160" height="100" />
+      <div class="pick-panel-actions">
+        <button class="pick-swap" type="button" data-action="try-again">TRY AGAIN</button>
+        <button class="pick-go is-ready" type="button" data-action="all-done">ALL DONE!</button>
+      </div>
     </div>
-    <button class="corner-btn corner-light" data-action="start-over">RESET</button>
+    <button class="pick-back" type="button" data-action="start-over">START OVER</button>
   </section>`;
 }
 

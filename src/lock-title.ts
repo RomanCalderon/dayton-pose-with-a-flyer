@@ -2,7 +2,7 @@ export const LOCK_WORDS = ["LOCK", "IN", "THAT", "POSE"] as const;
 export const LOCK_FONT_SIZE = 569.92;
 export const LOCK_LINE_HEIGHT = 587.02;
 /** Quick fade as each word appears. */
-export const LOCK_FADE_IN_MS = 150;
+export const LOCK_FADE_IN_MS = 60;
 
 export interface LockTitleSettings {
   enabled: boolean;

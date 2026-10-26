@@ -71,7 +71,7 @@ export const DEFAULT_CONFIG: AppConfig = {
       enabled: true,
       color: "#FFFFFF",
       opacity: 1,
-      revealFraction: 0.5,
+      revealFraction: 0.2,
       fadeDelayMs: 1000,
       fadeDurationFraction: 0.5,
     },
