@@ -1,5 +1,5 @@
 import { DEFAULT_CONFIG } from "./config";
-import { plusMinusPosition, resolveClipSize, transformBounds, type ClipSize } from "./placement";
+import { mapClipBounds, plusMinusPosition, resolveClipSize, transformBounds, type Bounds, type ClipSize } from "./placement";
 import {
   athleteArcName,
   estimateArcAdvance,
@@ -39,6 +39,8 @@ export interface ViewModel {
   hasPhoto: boolean;
   flashOpacity: number;
   measuredClips: Record<string, ClipSize>;
+  /** Clip-pixel opaque box per athlete. A missing id uses the full clip. */
+  opaqueClips: Record<string, Bounds>;
   /** Blob URL of the static plate. Null falls back to solid navy. */
   backgroundUrl: string | null;
   backgroundWidth: number;
@@ -381,7 +383,10 @@ function plusMinus(view: ViewModel): string {
   const side = view.session.sides[id];
   if (!athlete || !transform || !side) return "";
   const clip = clipSize(view, athlete.clips[side]);
-  const bounds = transformBounds(transform, clip);
+  const local = view.opaqueClips[id];
+  const bounds = local && local.width > 0 && local.height > 0
+    ? mapClipBounds(local, clip, transform)
+    : transformBounds(transform, clip);
   const place = plusMinusPosition(bounds, view.config.output.width, view.config.output.height, STAGE_W, STAGE_H);
   return `<div class="pm" style="left:${trimNum(place.left)}px;top:${trimNum(place.top)}px">
     <button class="pm-btn" data-action="scale" data-dir="1" aria-label="Larger">+</button>

@@ -102,6 +102,73 @@ export interface PlusMinusPlacement {
   side: "right" | "left";
 }
 
+/** Alpha above this counts as visible artwork. 16 ignores mask compression noise. */
+export const OPAQUE_ALPHA_THRESHOLD = 16;
+
+export type OpaqueMask = "alpha" | "stacked-red";
+
+/**
+ * Stacked mp4s store the silhouette in the bottom half and are otherwise opaque.
+ * A poster PNG is already the color frame, so it uses the real alpha channel.
+ */
+export function opaqueMaskFor(layout: ClipLayout, sourceHeight: number, clipHeight: number): OpaqueMask {
+  if (layout === "stacked-alpha" && clipHeight > 0 && sourceHeight >= clipHeight * 1.5) return "stacked-red";
+  return "alpha";
+}
+
+/**
+ * Opaque box in clip pixels, origin at the top-left of the drawn frame.
+ * `stacked-red` reads the mask half (red channel) and reports it in color-frame space.
+ * Returns null when the buffer is unreadable or no pixel clears the threshold.
+ */
+export function opaqueClipBounds(
+  data: ArrayLike<number>,
+  width: number,
+  height: number,
+  mask: OpaqueMask,
+  threshold = OPAQUE_ALPHA_THRESHOLD,
+): Bounds | null {
+  if (width <= 0 || height <= 0 || data.length < width * height * 4) return null;
+  const stacked = mask === "stacked-red";
+  const colorHeight = stacked ? height / 2 : height;
+  if (colorHeight <= 0) return null;
+  const y0 = stacked ? colorHeight : 0;
+  let minX = width;
+  let minY = colorHeight;
+  let maxX = -1;
+  let maxY = -1;
+  for (let y = y0; y < height; y += 1) {
+    const row = y * width * 4;
+    const localY = y - y0;
+    for (let x = 0; x < width; x += 1) {
+      const sample = data[row + x * 4 + (stacked ? 0 : 3)];
+      if (sample <= threshold) continue;
+      if (x < minX) minX = x;
+      if (localY < minY) minY = localY;
+      if (x > maxX) maxX = x;
+      if (localY > maxY) maxY = localY;
+    }
+  }
+  if (maxX < 0 || maxY < 0) return null;
+  return {
+    left: minX,
+    top: minY,
+    width: maxX - minX + 1,
+    height: maxY - minY + 1,
+  };
+}
+
+/** Scale a clip-pixel box with the athlete. The origin is the top-left of the full clip. */
+export function mapClipBounds(local: Bounds, clip: ClipSize, transform: AthleteTransform): Bounds {
+  const frame = transformBounds(transform, clip);
+  return {
+    left: frame.left + local.left * transform.scale,
+    top: frame.top + local.top * transform.scale,
+    width: local.width * transform.scale,
+    height: local.height * transform.scale,
+  };
+}
+
 /**
  * Stage position for the +/− stack: vertically centred on the player, just
  * outside the right edge. Flips to the left when the right side would leave

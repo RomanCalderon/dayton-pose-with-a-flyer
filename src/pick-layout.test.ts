@@ -276,6 +276,7 @@ function pickHtml(team: Athlete[], roster: RosterId = "mens", selected: string[]
     hasPhoto: true,
     flashOpacity: 0,
     measuredClips: {},
+    opaqueClips: {},
     backgroundUrl: null,
     backgroundWidth: 0,
     backgroundHeight: 0,

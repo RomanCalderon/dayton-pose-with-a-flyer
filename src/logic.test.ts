@@ -6,6 +6,9 @@ import {
   clampTransform,
   defaultTransform,
   hitTest,
+  mapClipBounds,
+  opaqueClipBounds,
+  opaqueMaskFor,
   plusMinusPosition,
   PM_BUTTON,
   PM_EDGE_GAP,
@@ -280,6 +283,56 @@ describe("placement and upload", () => {
     expect(edge.top + column).toBeLessThanOrEqual(2160);
   });
 
+  it("places the size buttons on the opaque artwork instead of the padded frame", () => {
+    expect(opaqueMaskFor("stacked-alpha", 1280, 640)).toBe("stacked-red");
+    expect(opaqueMaskFor("stacked-alpha", 640, 640)).toBe("alpha");
+    expect(opaqueMaskFor("vp9-alpha", 1280, 640)).toBe("alpha");
+
+    const width = 6;
+    const height = 8;
+    const stacked = new Uint8ClampedArray(width * height * 4);
+    const paint = (x: number, y: number, red: number) => {
+      stacked[(y * width + x) * 4] = red;
+    };
+    paint(0, 4, 10);
+    paint(1, 5, 17);
+    paint(3, 7, 255);
+    const box = opaqueClipBounds(stacked, width, height, "stacked-red");
+    expect(box).toEqual({ left: 1, top: 1, width: 3, height: 3 });
+
+    const straight = new Uint8ClampedArray(4 * 4 * 4);
+    straight[(1 * 4 + 2) * 4 + 3] = 16;
+    straight[(2 * 4 + 1) * 4 + 3] = 200;
+    expect(opaqueClipBounds(straight, 4, 4, "alpha")).toEqual({ left: 1, top: 2, width: 1, height: 1 });
+    expect(opaqueClipBounds(new Uint8ClampedArray(4 * 4 * 4), 4, 4, "alpha")).toBeNull();
+    expect(opaqueClipBounds(new Uint8ClampedArray(8), width, height, "stacked-red")).toBeNull();
+
+    const clip = { width: 360, height: 640 };
+    const local = { left: 48, top: 60, width: 229, height: 571 };
+    const transform = { x: 400, y: 720, scale: 2 };
+    const full = transformBounds(transform, clip);
+    const visible = mapClipBounds(local, clip, transform);
+    expect(mapClipBounds({ left: 0, top: 0, width: clip.width, height: clip.height }, clip, transform)).toEqual(full);
+    expect(visible.left).toBeGreaterThan(full.left);
+    expect(visible.left + visible.width).toBeLessThan(full.left + full.width);
+    expect(visible.top).toBe(full.top + local.top * transform.scale);
+    expect(visible.width).toBe(local.width * transform.scale);
+
+    const stageW = 3840;
+    const stageH = 2160;
+    const place = plusMinusPosition(visible, 2560, 1440, stageW, stageH);
+    const padded = plusMinusPosition(full, 2560, 1440, stageW, stageH);
+    const sx = stageW / 2560;
+    const column = PM_BUTTON * 2 + PM_STACK_GAP;
+    expect(place.side).toBe("right");
+    expect(place.left).toBeCloseTo((visible.left + visible.width) * sx + PM_EDGE_GAP, 5);
+    expect(place.left).toBeLessThan(padded.left);
+    expect(place.top + column / 2).toBeCloseTo((visible.top + visible.height / 2) * sx, 5);
+
+    const grown = mapClipBounds(local, clip, { ...transform, scale: 2.4 });
+    expect(plusMinusPosition(grown, 2560, 1440, stageW, stageH).left).toBeGreaterThan(place.left);
+  });
+
   it("sizes a real VP9 frame when clipMeta is omitted", () => {
     expect(resolveClipLayout("WEBM/Men/M-0-L.webm", undefined)).toBe("vp9-alpha");
     expect(resolveClipLayout("athletes/left_dribble.mp4", undefined)).toBe("stacked-alpha");
@@ -491,6 +544,7 @@ function viewFor(
     hasPhoto: true,
     flashOpacity: 0,
     measuredClips: {},
+    opaqueClips: {},
     backgroundUrl,
     backgroundWidth: backgroundUrl ? 3840 : 0,
     backgroundHeight: backgroundUrl ? 2320 : 0,

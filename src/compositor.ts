@@ -1,7 +1,6 @@
 import { sourceIsCanvasSafe } from "./media";
 import type { AthleteTransform } from "./types";
-import type { Bounds } from "./placement";
-import { stackedSampleV } from "./placement";
+import { opaqueClipBounds, opaqueMaskFor, stackedSampleV, type Bounds } from "./placement";
 
 export type AlphaLayout = "stacked-alpha" | "vp9-alpha" | "straight";
 
@@ -505,6 +504,53 @@ function sourceHeight(source: CanvasImageSource): number {
   if (source instanceof HTMLCanvasElement) return source.height;
   if (source instanceof HTMLImageElement) return source.naturalHeight;
   return 0;
+}
+
+const opaqueCache = new WeakMap<CanvasImageSource, { stamp: string; bounds: Bounds | null }>();
+let opaqueScratch: HTMLCanvasElement | null = null;
+
+/**
+ * Clip-pixel opaque box for one image. Cached per source and frame.
+ * A tainted or unreadable image returns null so the caller can use the full clip.
+ * A video that is not ready yet also returns null, and is not cached.
+ */
+export function measureOpaqueBounds(source: CanvasImageSource, layout: AlphaLayout, clipHeight: number): Bounds | null {
+  const width = sourceWidth(source);
+  const height = sourceHeight(source);
+  if (width <= 0 || height <= 0) return null;
+  if (source instanceof HTMLVideoElement && source.readyState < 2) return null;
+  const time = source instanceof HTMLVideoElement ? source.currentTime.toFixed(3) : "still";
+  const stamp = `${width}x${height}:${layout}:${clipHeight}:${time}`;
+  const cached = opaqueCache.get(source);
+  if (cached?.stamp === stamp) return cached.bounds;
+  const bounds = readOpaqueBounds(source, width, height, layout, clipHeight);
+  opaqueCache.set(source, { stamp, bounds });
+  return bounds;
+}
+
+function readOpaqueBounds(
+  source: CanvasImageSource,
+  width: number,
+  height: number,
+  layout: AlphaLayout,
+  clipHeight: number,
+): Bounds | null {
+  if (typeof document === "undefined" || !sourceIsCanvasSafe(source)) return null;
+  try {
+    if (!opaqueScratch) opaqueScratch = document.createElement("canvas");
+    if (opaqueScratch.width !== width || opaqueScratch.height !== height) {
+      opaqueScratch.width = width;
+      opaqueScratch.height = height;
+    }
+    const ctx = opaqueScratch.getContext("2d", { willReadFrequently: true });
+    if (!ctx) return null;
+    ctx.clearRect(0, 0, width, height);
+    ctx.drawImage(source, 0, 0, width, height);
+    const data = ctx.getImageData(0, 0, width, height).data;
+    return opaqueClipBounds(data, width, height, opaqueMaskFor(layout, height, clipHeight));
+  } catch {
+    return null;
+  }
 }
 
 /**

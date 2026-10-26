@@ -17,6 +17,7 @@ import {
   measuredColorSize,
   resolveClipLayout,
   transformForMeasuredSize,
+  type Bounds,
 } from "./placement";
 import { matchCamera } from "./cameras";
 import { extractParticipantId } from "./participant";
@@ -59,6 +60,7 @@ import {
   Compositor,
   GUEST_PLACEHOLDER_FILE,
   guestStandInLayer,
+  measureOpaqueBounds,
   type AthleteLayer,
   type AlphaLayout,
   type BackgroundLayer,
@@ -139,6 +141,8 @@ export class KioskApp {
   private frameImage: HTMLImageElement | null = null;
   private clips = new Map<string, LoadedClip>();
   private measuredClips = new Map<string, { width: number; height: number }>();
+  /** Clip-pixel opaque boxes for the athletes on the adjust screen. */
+  private opaqueClips: Record<string, Bounds> = {};
   private blobbedAssets = new Map<string, string>();
   private assetHits = new Map<string, AssetHit>();
   private assetPending = new Map<string, Promise<AssetHit>>();
@@ -551,6 +555,7 @@ export class KioskApp {
   }
 
   private render(): void {
+    this.refreshOpaqueClips();
     const view = this.view();
     this.noteRosterOverflow();
     this.chrome.innerHTML = renderChrome(view);
@@ -621,6 +626,7 @@ export class KioskApp {
       hasPhoto: Boolean(this.photoVideo || this.frozenCamera),
       flashOpacity: this.flashOpacity,
       measuredClips: Object.fromEntries(this.measuredClips),
+      opaqueClips: this.opaqueClips,
       backgroundUrl: this.backgroundUrl,
       backgroundWidth: this.backgroundWidth,
       backgroundHeight: this.backgroundHeight,
@@ -1081,32 +1087,7 @@ export class KioskApp {
       const transform = this.session.transforms[id];
       const clip = this.clips.get(this.clipKey(id, side));
       if (!side || !transform || !clip) return [];
-      const kind = athleteSourceKind({
-        screen: this.session.screen,
-        presented: clip.presented,
-        hasStill: Boolean(clip.still),
-        videoReady: clip.video.readyState >= 2 && sourceIsCanvasSafe(clip.video),
-        hasPoster: Boolean(clip.poster && sourceIsCanvasSafe(clip.poster)),
-      });
-      let source: CanvasImageSource | null;
-      switch (kind) {
-        case "hidden":
-          source = null;
-          break;
-        case "still":
-          source = clip.still;
-          break;
-        case "video":
-          source = clip.video;
-          break;
-        case "poster":
-          source = clip.poster;
-          break;
-        default: {
-          const neverKind: never = kind;
-          source = neverKind;
-        }
-      }
+      const source = this.clipSource(clip);
       if (!source || clip.width <= 0 || clip.height <= 0) return [];
       const adjusting = this.session.screen === "adjust";
       return [{
@@ -1347,20 +1328,77 @@ export class KioskApp {
   private revealClip(clip: LoadedClip): void {
     const holding = this.session.screen === "adjust" || this.session.screen === "preview" || this.session.screen === "flash";
     const video = clip.video;
+    let awaitingFrame = false;
     if (holding && Number.isFinite(video.duration) && video.duration > 0 && video.currentTime < 0.2) {
       const target = Math.max(0, video.duration - 0.05);
       if (mediaIsSeekable(video.seekable.length, video.seekable.length > 0 ? video.seekable.end(0) : 0)) {
         try {
           video.currentTime = target;
+          awaitingFrame = true;
+          video.addEventListener("seeked", () => this.onHeldFrame(), { once: true });
         } catch (error) {
           this.logError(`seek ${clip.file}`, error);
         }
       }
     }
-    if (this.session.screen !== "attract" && this.session.screen !== "pick" && this.session.screen !== "thanks") {
+    if (!awaitingFrame) this.onHeldFrame();
+    else if (this.session.screen !== "attract" && this.session.screen !== "pick" && this.session.screen !== "thanks") {
       this.safePaint();
     }
     this.refreshDebugLive();
+  }
+
+  /** Repaint a held pose. Adjust also remeasures the opaque box so the buttons catch up. */
+  private onHeldFrame(): void {
+    if (this.session.screen === "adjust") {
+      this.render();
+      return;
+    }
+    if (this.session.screen !== "attract" && this.session.screen !== "pick" && this.session.screen !== "thanks") {
+      this.safePaint();
+    }
+  }
+
+  private refreshOpaqueClips(): void {
+    if (this.session.screen !== "adjust") {
+      this.opaqueClips = {};
+      return;
+    }
+    const next: Record<string, Bounds> = {};
+    for (const id of this.session.selectedIds) {
+      const side = this.session.sides[id];
+      const clip = side ? this.clips.get(this.clipKey(id, side)) : undefined;
+      if (!clip || clip.width <= 0 || clip.height <= 0) continue;
+      const source = this.clipSource(clip);
+      if (!source) continue;
+      const box = measureOpaqueBounds(source, clip.layout, clip.height);
+      if (box && box.width > 0 && box.height > 0) next[id] = box;
+    }
+    this.opaqueClips = next;
+  }
+
+  private clipSource(clip: LoadedClip): CanvasImageSource | null {
+    const kind = athleteSourceKind({
+      screen: this.session.screen,
+      presented: clip.presented,
+      hasStill: Boolean(clip.still),
+      videoReady: clip.video.readyState >= 2 && sourceIsCanvasSafe(clip.video),
+      hasPoster: Boolean(clip.poster && sourceIsCanvasSafe(clip.poster)),
+    });
+    switch (kind) {
+      case "hidden":
+        return null;
+      case "still":
+        return clip.still;
+      case "video":
+        return clip.video;
+      case "poster":
+        return clip.poster;
+      default: {
+        const neverKind: never = kind;
+        return neverKind;
+      }
+    }
   }
 
   private dropClips(): void {
