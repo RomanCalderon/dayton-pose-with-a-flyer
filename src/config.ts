@@ -17,6 +17,11 @@ export const DEFAULT_CONFIG: AppConfig = {
     rotateButton: false,
     debugOverlay: false,
   },
+  adjust: {
+    sizeButtons: {
+      offsetX: 24,
+    },
+  },
   uploader: {
     baseUrl: "http://localhost:5001",
     uploadPath: "/upload",

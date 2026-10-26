@@ -31,6 +31,14 @@
     "rotateButton": false,
     "debugOverlay": false
   },
+  "adjust": {
+    // Gap between the visible player and the +/− buttons, in stage px at 3840×2160.
+    // Used on the right, and again when the column flips to the left.
+    // Negative overlaps the artwork. The buttons are still kept on screen.
+    "sizeButtons": {
+      "offsetX": 24
+    }
+  },
   "uploader": {
     // Host port of the uploader container (it listens on :5000 inside Docker).
     "baseUrl": "http://localhost:5001",

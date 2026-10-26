@@ -93,7 +93,7 @@ export interface Bounds {
 /** Size-button stack. Matches `.pm-btn` (128px) and the 16px column gap. */
 export const PM_BUTTON = 128;
 export const PM_STACK_GAP = 16;
-/** Space between the player box and the button column. */
+/** Default gap between the visible player and the button column. `adjust.sizeButtons.offsetX`. */
 export const PM_EDGE_GAP = 24;
 
 export interface PlusMinusPlacement {
@@ -170,9 +170,9 @@ export function mapClipBounds(local: Bounds, clip: ClipSize, transform: AthleteT
 }
 
 /**
- * Stage position for the +/− stack: vertically centred on the player, just
- * outside the right edge. Flips to the left when the right side would leave
- * the stage, then clamps the column inside the stage.
+ * Stage position for the +/− stack: vertically centred on the player, `offsetX`
+ * outside the right edge. The same offset is used when the column flips left.
+ * A negative offset overlaps the artwork. The column is then clamped on stage.
  */
 export function plusMinusPosition(
   bounds: Bounds,
@@ -180,7 +180,9 @@ export function plusMinusPosition(
   outputHeight: number,
   stageWidth: number,
   stageHeight: number,
+  offsetX = PM_EDGE_GAP,
 ): PlusMinusPlacement {
+  const gap = Number.isFinite(offsetX) ? offsetX : PM_EDGE_GAP;
   const sx = outputWidth > 0 ? stageWidth / outputWidth : 1;
   const sy = outputHeight > 0 ? stageHeight / outputHeight : 1;
   const boxLeft = bounds.left * sx;
@@ -189,10 +191,10 @@ export function plusMinusPosition(
   const boxHeight = bounds.height * sy;
   const columnHeight = PM_BUTTON * 2 + PM_STACK_GAP;
   let side: PlusMinusPlacement["side"] = "right";
-  let left = boxLeft + boxWidth + PM_EDGE_GAP;
+  let left = boxLeft + boxWidth + gap;
   if (left + PM_BUTTON > stageWidth) {
     side = "left";
-    left = boxLeft - PM_EDGE_GAP - PM_BUTTON;
+    left = boxLeft - gap - PM_BUTTON;
   }
   left = clamp(left, 0, Math.max(0, stageWidth - PM_BUTTON));
   const top = clamp(boxTop + (boxHeight - columnHeight) / 2, 0, Math.max(0, stageHeight - columnHeight));

@@ -333,6 +333,45 @@ describe("placement and upload", () => {
     expect(plusMinusPosition(grown, 2560, 1440, stageW, stageH).left).toBeGreaterThan(place.left);
   });
 
+  it("applies adjust.sizeButtons.offsetX on both sides of the player", () => {
+    expect(parseConfig("{}").adjust.sizeButtons.offsetX).toBe(24);
+    expect(parseConfig('{ "adjust": { "sizeButtons": {} } }').adjust.sizeButtons.offsetX).toBe(24);
+    const gap = parseConfig('{ "adjust": { "sizeButtons": { "offsetX": 80 } } }').adjust.sizeButtons.offsetX;
+    expect(gap).toBe(80);
+
+    const bounds = { left: 400, top: 200, width: 500, height: 800 };
+    const stageW = 3840;
+    const stageH = 2160;
+    const sx = stageW / 2560;
+    const boxRight = (bounds.left + bounds.width) * sx;
+    const place = plusMinusPosition(bounds, 2560, 1440, stageW, stageH, gap);
+    const fallback = plusMinusPosition(bounds, 2560, 1440, stageW, stageH);
+    expect(place.side).toBe("right");
+    expect(place.left).toBeCloseTo(boxRight + gap, 5);
+    expect(place.left - fallback.left).toBeCloseTo(gap - PM_EDGE_GAP, 5);
+
+    const overlap = plusMinusPosition(bounds, 2560, 1440, stageW, stageH, -40);
+    expect(overlap.side).toBe("right");
+    expect(overlap.left).toBeCloseTo(boxRight - 40, 5);
+    expect(overlap.left + PM_BUTTON).toBeGreaterThan(boxRight);
+
+    const edgeBounds = { left: 2200, top: 200, width: 500, height: 800 };
+    const edge = plusMinusPosition(edgeBounds, 2560, 1440, stageW, stageH, gap);
+    const edgeLeft = edgeBounds.left * sx;
+    expect(edge.side).toBe("left");
+    expect(edge.left + PM_BUTTON + gap).toBeCloseTo(edgeLeft, 5);
+    expect(edge.left).toBeGreaterThanOrEqual(0);
+    expect(edge.left + PM_BUTTON).toBeLessThanOrEqual(stageW);
+
+    const huge = plusMinusPosition(bounds, 2560, 1440, stageW, stageH, 5000);
+    const buried = plusMinusPosition(bounds, 2560, 1440, stageW, stageH, -5000);
+    expect(huge.left).toBeGreaterThanOrEqual(0);
+    expect(huge.left + PM_BUTTON).toBeLessThanOrEqual(stageW);
+    expect(buried.left).toBeGreaterThanOrEqual(0);
+    expect(buried.left + PM_BUTTON).toBeLessThanOrEqual(stageW);
+    expect(plusMinusPosition(bounds, 2560, 1440, stageW, stageH, Number.NaN).left).toBeCloseTo(fallback.left, 5);
+  });
+
   it("sizes a real VP9 frame when clipMeta is omitted", () => {
     expect(resolveClipLayout("WEBM/Men/M-0-L.webm", undefined)).toBe("vp9-alpha");
     expect(resolveClipLayout("athletes/left_dribble.mp4", undefined)).toBe("stacked-alpha");
@@ -506,6 +545,7 @@ describe("defaults", () => {
     expect(base.pick.headshot).toEqual({ zoom: 1.18, offsetX: 0, offsetY: 0 });
     expect(base.pick.nameInset).toBe(12);
     expect(base.capture.guestPlaceholder).toBe(true);
+    expect(base.adjust.sizeButtons.offsetX).toBe(24);
     expect(base.countdown.lockTitle).toEqual({
       enabled: true,
       color: "#FFFFFF",

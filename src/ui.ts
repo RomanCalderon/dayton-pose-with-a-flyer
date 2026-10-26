@@ -387,7 +387,14 @@ function plusMinus(view: ViewModel): string {
   const bounds = local && local.width > 0 && local.height > 0
     ? mapClipBounds(local, clip, transform)
     : transformBounds(transform, clip);
-  const place = plusMinusPosition(bounds, view.config.output.width, view.config.output.height, STAGE_W, STAGE_H);
+  const place = plusMinusPosition(
+    bounds,
+    view.config.output.width,
+    view.config.output.height,
+    STAGE_W,
+    STAGE_H,
+    view.config.adjust.sizeButtons.offsetX,
+  );
   return `<div class="pm" style="left:${trimNum(place.left)}px;top:${trimNum(place.top)}px">
     <button class="pm-btn" data-action="scale" data-dir="1" aria-label="Larger">+</button>
     <button class="pm-btn" data-action="scale" data-dir="-1" aria-label="Smaller">−</button>

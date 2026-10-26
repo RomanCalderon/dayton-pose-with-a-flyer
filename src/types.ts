@@ -50,6 +50,17 @@ export interface AppConfig {
     rotateButton: boolean;
     debugOverlay: boolean;
   };
+  /**
+   * Tap-to-adjust screen. `sizeButtons.offsetX` is the horizontal gap between the
+   * visible player and the +/− column, in stage px at 3840×2160. Positive sits
+   * outside the artwork. Negative overlaps it. The same value is used when the
+   * column flips to the left.
+   */
+  adjust: {
+    sizeButtons: {
+      offsetX: number;
+    };
+  };
   uploader: {
     baseUrl: string;
     uploadPath: string;
