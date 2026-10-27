@@ -11,12 +11,13 @@ import {
 import { countdownDue, countdownRemainingMs, countdownShownSecond } from "./clock";
 import { LOCK_FONT_SIZE, LOCK_LINE_HEIGHT, lockCapTopOffset, lockTitleAt } from "./lock-title";
 import {
+  athleteAtPoint,
   clampTransform,
   defaultTransform,
-  hitTest,
   measuredColorSize,
   resolveClipLayout,
   transformForMeasuredSize,
+  type AthleteHit,
   type Bounds,
 } from "./placement";
 import { matchCamera } from "./cameras";
@@ -52,7 +53,7 @@ import {
   type RuntimePaths,
 } from "./platform";
 import { getQrReader, grabFrame } from "./qr";
-import { chooseSides, createSession, reduceSession, type SessionEvent } from "./session";
+import { adjustTapAction, chooseSides, createSession, reduceSession, tapMoved, type SessionEvent } from "./session";
 import type { AppConfig, Athlete, AthleteTransform, MediaDeviceLike, RosterFile, RosterId, Session, Side, UploadResult } from "./types";
 import { postPhoto, responseSnippet, uploadEndpoint, uploadFields, uploadFilename } from "./upload";
 import {
@@ -188,6 +189,15 @@ export class KioskApp {
   private pointers = new Map<number, PointerPoint>();
   private drag: { id: string; lastX: number; lastY: number } | null = null;
   private pinch: { id: string; startDist: number; startScale: number } | null = null;
+  /** The adjust gesture that started with the first finger or mouse button. */
+  private adjustGesture: {
+    pointerId: number;
+    x: number;
+    y: number;
+    onPlayer: boolean;
+    moved: boolean;
+    pinched: boolean;
+  } | null = null;
   private devices: MediaDeviceLike[] = [];
   private attractTimer = 0;
   private attractToken = 0;
@@ -1745,11 +1755,23 @@ export class KioskApp {
 
   private onPointerDown(event: PointerEvent): void {
     if (this.session.screen !== "adjust") return;
-    if ((event.target as HTMLElement).closest("button")) return;
+    if (event.target instanceof Element && event.target.closest("button, .dock, .pm")) return;
     const point = this.outputPoint(event);
     this.pointers.set(event.pointerId, point);
     this.stage.setPointerCapture(event.pointerId);
     const hit = this.athleteAt(point.x, point.y);
+    if (!this.adjustGesture) {
+      this.adjustGesture = {
+        pointerId: event.pointerId,
+        x: point.x,
+        y: point.y,
+        onPlayer: Boolean(hit),
+        moved: false,
+        pinched: false,
+      };
+    } else {
+      this.adjustGesture.pinched = true;
+    }
     if (hit) {
       this.session = reduceSession(this.session, { type: "selectAdjust", id: hit });
       this.drag = { id: hit, lastX: point.x, lastY: point.y };
@@ -1762,6 +1784,7 @@ export class KioskApp {
         startDist: Math.hypot(a.x - b.x, a.y - b.y),
         startScale: this.session.transforms[this.session.selectedAdjustId]?.scale ?? 1,
       };
+      if (this.adjustGesture) this.adjustGesture.pinched = true;
     }
   }
 
@@ -1769,6 +1792,8 @@ export class KioskApp {
     if (!this.pointers.has(event.pointerId)) return;
     const point = this.outputPoint(event);
     this.pointers.set(event.pointerId, point);
+    const gesture = this.adjustGesture;
+    if (gesture && tapMoved(point.x - gesture.x, point.y - gesture.y)) gesture.moved = true;
     if (this.pinch && this.pointers.size >= 2) {
       const [a, b] = [...this.pointers.values()];
       const dist = Math.hypot(a.x - b.x, a.y - b.y);
@@ -1804,23 +1829,37 @@ export class KioskApp {
   }
 
   private onPointerUp(event: PointerEvent): void {
+    const gesture = this.adjustGesture;
+    const clean = event.type === "pointerup";
     this.pointers.delete(event.pointerId);
     if (this.pointers.size < 2) this.pinch = null;
     if (this.pointers.size === 0) this.drag = null;
+    if (!gesture || this.pointers.size > 0) {
+      if (this.pointers.size === 0) this.adjustGesture = null;
+      return;
+    }
+    this.adjustGesture = null;
+    if (event.pointerId !== gesture.pointerId || !clean) return;
+    if (adjustTapAction({ ...gesture, onChrome: false }) !== "deselect" || !this.session.selectedAdjustId) return;
+    this.dispatch({ type: "clearAdjust" });
   }
 
   private athleteAt(x: number, y: number): string | null {
     if (!this.roster) return null;
-    const ordered = [...this.session.selectedIds].reverse();
-    for (const id of ordered) {
+    const athletes: AthleteHit[] = [];
+    for (const id of this.session.selectedIds) {
       const side = this.session.sides[id];
       const transform = this.session.transforms[id];
       const athlete = findAthlete(this.roster, id);
       if (!side || !transform || !athlete) continue;
-      const size = clipSize(this.view(), athlete.clips[side]);
-      if (hitTest(x, y, transform, size)) return id;
+      athletes.push({
+        id,
+        transform,
+        clip: clipSize(this.view(), athlete.clips[side]),
+        opaque: this.opaqueClips[id] ?? null,
+      });
     }
-    return null;
+    return athleteAtPoint(x, y, athletes);
   }
 
   private nudge(dx: number, dy: number): void {

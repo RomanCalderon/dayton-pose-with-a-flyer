@@ -93,7 +93,8 @@ button, video { font-family: inherit; }
   pointer-events: none;
 }
 
-#chrome button, #chrome .touch-start, #chrome .debug, #chrome .debug button, #chrome .attract.is-touch {
+#chrome button, #chrome .touch-start, #chrome .debug, #chrome .debug button, #chrome .attract.is-touch,
+#chrome .dock, #chrome .pm {
   pointer-events: auto;
 }
 

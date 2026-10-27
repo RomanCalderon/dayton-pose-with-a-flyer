@@ -212,14 +212,51 @@ export function transformBounds(transform: AthleteTransform, clip: ClipSize): Bo
   };
 }
 
+export function pointInBounds(x: number, y: number, bounds: Bounds): boolean {
+  return x >= bounds.left && y >= bounds.top && x <= bounds.left + bounds.width && y <= bounds.top + bounds.height;
+}
+
 export function hitTest(
   x: number,
   y: number,
   transform: AthleteTransform,
   clip: ClipSize,
 ): boolean {
-  const bounds = transformBounds(transform, clip);
-  return x >= bounds.left && y >= bounds.top && x <= bounds.left + bounds.width && y <= bounds.top + bounds.height;
+  return pointInBounds(x, y, transformBounds(transform, clip));
+}
+
+/**
+ * Hit the visible artwork. `opaque` is the clip-pixel box from the alpha scan.
+ * A null box falls back to the full clip, which is what a tainted image uses.
+ * A point in the transparent padding misses.
+ */
+export function hitTestVisible(
+  x: number,
+  y: number,
+  transform: AthleteTransform,
+  clip: ClipSize,
+  opaque: Bounds | null,
+): boolean {
+  const bounds = opaque && opaque.width > 0 && opaque.height > 0
+    ? mapClipBounds(opaque, clip, transform)
+    : transformBounds(transform, clip);
+  return pointInBounds(x, y, bounds);
+}
+
+export interface AthleteHit {
+  id: string;
+  transform: AthleteTransform;
+  clip: ClipSize;
+  opaque: Bounds | null;
+}
+
+/** Later athletes are drawn on top, so they win when the visible boxes overlap. */
+export function athleteAtPoint(x: number, y: number, athletes: readonly AthleteHit[]): string | null {
+  for (let index = athletes.length - 1; index >= 0; index -= 1) {
+    const athlete = athletes[index];
+    if (hitTestVisible(x, y, athlete.transform, athlete.clip, athlete.opaque)) return athlete.id;
+  }
+  return null;
 }
 
 /**

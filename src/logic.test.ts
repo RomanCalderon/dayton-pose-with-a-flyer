@@ -3,9 +3,11 @@ import { matchCamera, pinConfigured, isHttpUrl } from "./cameras";
 import { parseConfig, stripJsonComments } from "./config";
 import { idleTimeoutMs, stillThereMs, thanksTimeoutMs } from "./idle";
 import {
+  athleteAtPoint,
   clampTransform,
   defaultTransform,
   hitTest,
+  hitTestVisible,
   mapClipBounds,
   opaqueClipBounds,
   opaqueMaskFor,
@@ -22,7 +24,7 @@ import {
 } from "./placement";
 import { urlIsCanvasSafe } from "./media";
 import { athleteSourceKind, playbackFrameReady } from "./playback";
-import { chooseSides, createSession, reduceSession } from "./session";
+import { adjustTapAction, chooseSides, createSession, reduceSession, tapMoved } from "./session";
 import type { AppConfig, Athlete, RosterFile, Screen } from "./types";
 import { extractParticipantId, type ParticipantIdConfig } from "./participant";
 import { buildUploadForm, jpegFieldName, uploadEndpoint, uploadFields, uploadFilename } from "./upload";
@@ -103,6 +105,13 @@ describe("session", () => {
     session = reduceSession(session, { type: "flash" });
     session = reduceSession(session, { type: "flashDone" });
     expect(session.screen).toBe("adjust");
+    expect(session.selectedAdjustId).toBe("w01");
+    session = reduceSession(session, { type: "clearAdjust" });
+    expect(session.screen).toBe("adjust");
+    expect(session.selectedAdjustId).toBeNull();
+    expect(session.selectedIds).toEqual(["w01"]);
+    expect(session.transforms.w01).toEqual({ x: 1, y: 2, scale: 1 });
+    expect(reduceSession(session, { type: "clearAdjust" })).toBe(session);
     session = reduceSession(session, { type: "allDone" });
     session = reduceSession(session, { type: "send" });
     expect(session.screen).toBe("thanks");
@@ -331,6 +340,47 @@ describe("placement and upload", () => {
 
     const grown = mapClipBounds(local, clip, { ...transform, scale: 2.4 });
     expect(plusMinusPosition(grown, 2560, 1440, stageW, stageH).left).toBeGreaterThan(place.left);
+  });
+
+  it("hits the visible artwork and ignores transparent padding", () => {
+    const clip = { width: 360, height: 640 };
+    const opaque = { left: 48, top: 60, width: 229, height: 571 };
+    const transform = { x: 180, y: 320, scale: 1 };
+    const frame = transformBounds(transform, clip);
+    const visible = mapClipBounds(opaque, clip, transform);
+    const padding = { x: frame.left + 10, y: frame.top + 100 };
+    expect(hitTest(padding.x, padding.y, transform, clip)).toBe(true);
+    expect(hitTestVisible(padding.x, padding.y, transform, clip, opaque)).toBe(false);
+    expect(hitTestVisible(visible.left, visible.top, transform, clip, opaque)).toBe(true);
+    expect(hitTestVisible(visible.left + visible.width, visible.top + visible.height, transform, clip, opaque)).toBe(true);
+    expect(hitTestVisible(visible.left + visible.width + 1, visible.top, transform, clip, opaque)).toBe(false);
+    expect(hitTestVisible(padding.x, padding.y, transform, clip, null)).toBe(true);
+
+    const front = { x: 500, y: 400, scale: 1 };
+    const athletes = [
+      { id: "back", transform, clip, opaque },
+      { id: "front", transform: front, clip, opaque },
+    ];
+    const shared = mapClipBounds(opaque, clip, front);
+    expect(athleteAtPoint(shared.left + 20, shared.top + 20, athletes)).toBe("front");
+    expect(athleteAtPoint(visible.left + 20, visible.top + 20, athletes)).toBe("back");
+    expect(athleteAtPoint(padding.x, padding.y, athletes)).toBeNull();
+  });
+
+  it("deselects only a clean tap that started on empty space", () => {
+    expect(tapMoved(3, 4)).toBe(false);
+    expect(tapMoved(9, 0)).toBe(true);
+    expect(adjustTapAction({ onPlayer: false, onChrome: false, moved: false, pinched: false })).toBe("deselect");
+    expect(adjustTapAction({ onPlayer: true, onChrome: false, moved: false, pinched: false })).toBe("keep");
+    expect(adjustTapAction({ onPlayer: true, onChrome: false, moved: true, pinched: false })).toBe("keep");
+    expect(adjustTapAction({ onPlayer: true, onChrome: false, moved: true, pinched: true })).toBe("keep");
+    expect(adjustTapAction({ onPlayer: false, onChrome: true, moved: false, pinched: false })).toBe("keep");
+    expect(adjustTapAction({ onPlayer: false, onChrome: false, moved: true, pinched: false })).toBe("keep");
+    const countdown = reduceSession(
+      { ...createSession("mens"), screen: "countdown", selectedAdjustId: "m01", selectedIds: ["m01"] },
+      { type: "clearAdjust" },
+    );
+    expect(countdown.selectedAdjustId).toBe("m01");
   });
 
   it("applies adjust.sizeButtons.offsetX on both sides of the player", () => {

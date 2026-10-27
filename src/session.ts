@@ -23,6 +23,7 @@ export type SessionEvent =
   | { type: "flash" }
   | { type: "flashDone" }
   | { type: "selectAdjust"; id: string }
+  | { type: "clearAdjust" }
   | { type: "setTransform"; id: string; transform: AthleteTransform }
   | { type: "tryAgain"; countdownFrom: number; transforms: Record<string, AthleteTransform> }
   | { type: "allDone" }
@@ -136,6 +137,10 @@ export function reduceSession(session: Session, event: SessionEvent): Session {
       if (!session.selectedIds.includes(event.id)) return session;
       return { ...session, selectedAdjustId: event.id };
     }
+    case "clearAdjust": {
+      if (session.screen !== "adjust" || session.selectedAdjustId === null) return session;
+      return { ...session, selectedAdjustId: null };
+    }
     case "setTransform": {
       if (session.screen !== "adjust") return session;
       return {
@@ -172,6 +177,27 @@ export function reduceSession(session: Session, event: SessionEvent): Session {
       return neverEvent;
     }
   }
+}
+
+/** Output px. A clean tap can jitter this far without becoming a drag. */
+export const TAP_MOVE_PX = 8;
+
+export function tapMoved(dx: number, dy: number, slop = TAP_MOVE_PX): boolean {
+  return dx * dx + dy * dy > slop * slop;
+}
+
+/**
+ * Pointer-up on the adjust screen. A clean tap that started on empty space
+ * deselects. Chrome, visible artwork, drags, pinches, and resizes keep the selection.
+ */
+export function adjustTapAction(input: {
+  onPlayer: boolean;
+  onChrome: boolean;
+  moved: boolean;
+  pinched: boolean;
+}): "deselect" | "keep" {
+  if (input.onChrome || input.onPlayer || input.moved || input.pinched) return "keep";
+  return "deselect";
 }
 
 export function screenAllowsIdle(screen: Screen): boolean {
