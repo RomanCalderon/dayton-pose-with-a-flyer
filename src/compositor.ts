@@ -1,6 +1,6 @@
 import { sourceIsCanvasSafe } from "./media";
 import type { AthleteTransform } from "./types";
-import { opaqueClipBounds, opaqueMaskFor, stackedSampleV, type Bounds } from "./placement";
+import { athleteDrawMode, opaqueClipBounds, opaqueMaskFor, stackedSampleV, type Bounds } from "./placement";
 
 export type AlphaLayout = "stacked-alpha" | "vp9-alpha" | "straight";
 
@@ -196,6 +196,7 @@ export class Compositor {
       if (!sourceReady(athlete.source)) continue;
       try {
         const bounds = layerBounds(athlete);
+        const mode = athleteDrawMode(athlete.layout, sourceHeight(athlete.source), athlete.clipHeight);
         if (athlete.outline) {
           const pad = 0.045;
           const outlined: Bounds = {
@@ -204,10 +205,8 @@ export class Compositor {
             width: bounds.width * (1 + pad * 2),
             height: bounds.height * (1 + pad * 2),
           };
-          const mode = athlete.layout === "stacked-alpha" ? 1 : 2;
           this.drawQuad(athlete.source, outlined, mode, [0, 0.675, 0.925, 1], false);
         }
-        const mode = athlete.layout === "stacked-alpha" ? 1 : 2;
         this.drawQuad(athlete.source, bounds, mode, [0, 0, 0, 0], false);
       } catch (error) {
         this.report(error);
@@ -441,7 +440,8 @@ function compile(gl: WebGL2RenderingContext, type: number, source: string): WebG
 const maskCanvas = typeof document === "undefined" ? null : document.createElement("canvas");
 
 function drawAthlete2d(ctx: CanvasRenderingContext2D, athlete: AthleteLayer, bounds: Bounds): void {
-  if (athlete.layout !== "stacked-alpha") {
+  const stacked = athleteDrawMode(athlete.layout, sourceHeight(athlete.source), athlete.clipHeight) === 1;
+  if (!stacked) {
     ctx.drawImage(athlete.source, bounds.left, bounds.top, bounds.width, bounds.height);
     return;
   }

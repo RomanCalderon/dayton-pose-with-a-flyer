@@ -10,6 +10,7 @@ import {
   hitTestVisible,
   mapClipBounds,
   opaqueClipBounds,
+  athleteDrawMode,
   opaqueMaskFor,
   plusMinusPosition,
   PM_BUTTON,
@@ -340,6 +341,16 @@ describe("placement and upload", () => {
 
     const grown = mapClipBounds(local, clip, { ...transform, scale: 2.4 });
     expect(plusMinusPosition(grown, 2560, 1440, stageW, stageH).left).toBeGreaterThan(place.left);
+  });
+
+  it("draws a color-frame poster with its alpha and a stacked video with its mask", () => {
+    expect(athleteDrawMode("stacked-alpha", 1280, 640)).toBe(1);
+    expect(athleteDrawMode("stacked-alpha", 959, 640)).toBe(2);
+    expect(athleteDrawMode("stacked-alpha", 960, 640)).toBe(1);
+    expect(athleteDrawMode("stacked-alpha", 640, 640)).toBe(2);
+    expect(athleteDrawMode("stacked-alpha", 640, 0)).toBe(2);
+    expect(athleteDrawMode("vp9-alpha", 640, 640)).toBe(2);
+    expect(athleteDrawMode("straight", 1280, 640)).toBe(2);
   });
 
   it("hits the visible artwork and ignores transparent padding", () => {

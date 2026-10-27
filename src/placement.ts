@@ -117,6 +117,15 @@ export function opaqueMaskFor(layout: ClipLayout, sourceHeight: number, clipHeig
 }
 
 /**
+ * Compositor shader mode. `1` reads the stacked mask. `2` uses the image alpha.
+ * A poster or still that is only the color frame must use `2`. Sampling it as a
+ * stacked mask keeps the shoe-shaped reds and drops the rest of the player.
+ */
+export function athleteDrawMode(layout: ClipLayout, sourceHeight: number, clipHeight: number): 1 | 2 {
+  return opaqueMaskFor(layout, sourceHeight, clipHeight) === "stacked-red" ? 1 : 2;
+}
+
+/**
  * Opaque box in clip pixels, origin at the top-left of the drawn frame.
  * `stacked-red` reads the mask half (red channel) and reports it in color-frame space.
  * Returns null when the buffer is unreadable or no pixel clears the threshold.
