@@ -4,11 +4,13 @@ import { parseConfig, stripJsonComments } from "./config";
 import { idleTimeoutMs, stillThereMs, thanksTimeoutMs } from "./idle";
 import {
   athleteAtPoint,
+  applyWalkOn,
   clampTransform,
   defaultTransform,
   hitTest,
   hitTestVisible,
   mapClipBounds,
+  normalizeWalkOn,
   opaqueClipBounds,
   athleteDrawMode,
   opaqueMaskFor,
@@ -460,6 +462,81 @@ describe("placement and upload", () => {
     expect(corrected.x).toBeGreaterThan(2560 / 2);
   });
 
+  it("scales each walk-on clip around its own center and shifts it in stage px", () => {
+    expect(parseConfig("{}").athletes.walkOn).toEqual({ scale: 1, offsetY: 0 });
+    expect(parseConfig('{ "athletes": { "walkOn": { "scale": 1.2, "offsetY": -100 } } }').athletes.walkOn).toEqual({
+      scale: 1.2,
+      offsetY: -100,
+    });
+    expect(normalizeWalkOn({ scale: 9, offsetY: "down" })).toEqual({ scale: 3, offsetY: 0 });
+    expect(normalizeWalkOn({ scale: 0, offsetY: Number.NaN })).toEqual({ scale: 0.25, offsetY: 0 });
+    expect(normalizeWalkOn(null)).toEqual({ scale: 1, offsetY: 0 });
+    expect(parseConfig('{ "athletes": { "walkOn": { "scale": true, "offsetY": null } } }').athletes.walkOn).toEqual({
+      scale: 1,
+      offsetY: 0,
+    });
+
+    const clip = { width: 360, height: 640 };
+    const outputH = 1440;
+    const walk = { scale: 1.2, offsetY: -100 };
+    const stageToOutput = outputH / 2160;
+    const left = defaultTransform("left", 2560, outputH, clip);
+    const right = defaultTransform("right", 2560, outputH, clip);
+    const placedLeft = applyWalkOn(left, { scale: 1, offsetY: 0 }, outputH);
+    const placedRight = applyWalkOn(right, walk, outputH);
+    expect(placedLeft).toEqual(left);
+    expect(placedRight.x).toBe(right.x);
+    expect(placedRight.scale).toBeCloseTo(right.scale * 1.2);
+    expect(placedRight.y).toBeCloseTo(right.y - 100 * stageToOutput);
+
+    const before = transformBounds(right, clip);
+    const after = transformBounds(placedRight, clip);
+    expect(after.left + after.width / 2).toBeCloseTo(before.left + before.width / 2);
+    expect(after.top + after.height / 2).toBeCloseTo(before.top + before.height / 2 - 100 * stageToOutput);
+    expect(after.width).toBeCloseTo(before.width * 1.2);
+    expect(after.height).toBeCloseTo(before.height * 1.2);
+    expect(applyWalkOn(left, walk, outputH).y - left.y).toBeCloseTo(placedRight.y - right.y);
+
+    const opaque = { left: 48, top: 60, width: 229, height: 571 };
+    const visible = mapClipBounds(opaque, clip, placedRight);
+    expect(visible.top).toBeLessThan(mapClipBounds(opaque, clip, right).top);
+    expect(athleteAtPoint(visible.left + visible.width / 2, visible.top + visible.height / 2, [
+      { id: "right", transform: placedRight, clip, opaque },
+    ])).toBe("right");
+    expect(athleteAtPoint(visible.left - 2, visible.top + visible.height / 2, [
+      { id: "right", transform: placedRight, clip, opaque },
+    ])).toBeNull();
+    const buttons = plusMinusPosition(visible, 2560, outputH, 3840, 2160, 24);
+    const column = PM_BUTTON * 2 + PM_STACK_GAP;
+    expect(buttons.top + column / 2).toBeCloseTo((visible.top + visible.height / 2) * (2160 / outputH), 5);
+
+    const guessed = applyWalkOn(defaultTransform("right", 2560, outputH, { width: 360, height: 640 }), walk, outputH);
+    const refit = transformForMeasuredSize(
+      "right",
+      2560,
+      outputH,
+      { width: 0, height: 0 },
+      { width: 1440, height: 2160 },
+      guessed,
+      walk,
+    );
+    const expected = applyWalkOn(defaultTransform("right", 2560, outputH, { width: 1440, height: 2160 }), walk, outputH);
+    expect(refit).toEqual(expected);
+    const dragged = { ...guessed, x: guessed.x + 40, scale: guessed.scale * 1.1 };
+    const kept = transformForMeasuredSize(
+      "right",
+      2560,
+      outputH,
+      { width: 360, height: 640 },
+      { width: 400, height: 800 },
+      dragged,
+      walk,
+    );
+    expect(kept.x).toBe(dragged.x);
+    expect(kept.y).toBeCloseTo(dragged.y);
+    expect(kept.scale).toBeCloseTo(dragged.scale * (640 / 800));
+  });
+
   it("treats asset.localhost images as unsafe for WebGL", () => {
     const page = "http://tauri.localhost/";
     expect(urlIsCanvasSafe("http://asset.localhost/assets/frames/takeaway_v1.png", page)).toBe(false);
@@ -607,6 +684,7 @@ describe("defaults", () => {
     expect(base.pick.nameInset).toBe(12);
     expect(base.capture.guestPlaceholder).toBe(true);
     expect(base.adjust.sizeButtons.offsetX).toBe(24);
+    expect(base.athletes.walkOn).toEqual({ scale: 1, offsetY: 0 });
     expect(base.countdown.lockTitle).toEqual({
       enabled: true,
       color: "#FFFFFF",

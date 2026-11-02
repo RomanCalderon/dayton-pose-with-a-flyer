@@ -43,7 +43,17 @@ export interface AppConfig {
     stillThereWarningSeconds: number;
   };
   roster: { default: RosterId; maxSelections: number };
-  athletes: { singleSelectionSide: SingleSide };
+  /**
+   * `walkOn.scale` multiplies every clip around that clip's own center.
+   * `walkOn.offsetY` is stage px at 3840×2160. Positive moves the athlete down.
+   */
+  athletes: {
+    singleSelectionSide: SingleSide;
+    walkOn: {
+      scale: number;
+      offsetY: number;
+    };
+  };
   features: {
     multitouchAdjust: boolean;
     plusMinusButtons: boolean;

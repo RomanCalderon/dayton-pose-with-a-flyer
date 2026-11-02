@@ -23,7 +23,14 @@
     "maxSelections": 2
   },
   "athletes": {
-    "singleSelectionSide": "random"
+    "singleSelectionSide": "random",
+    // Base placement for every clip as it walks on. scale grows or shrinks around
+    // that clip's own center (1 is the built-in size; clamped to 0.25–3).
+    // offsetY is stage px at 3840×2160. Positive moves down, negative moves up.
+    "walkOn": {
+      "scale": 1,
+      "offsetY": 0
+    }
   },
   "features": {
     "multitouchAdjust": true,

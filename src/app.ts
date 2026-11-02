@@ -12,9 +12,11 @@ import { countdownDue, countdownRemainingMs, countdownShownSecond } from "./cloc
 import { LOCK_FONT_SIZE, LOCK_LINE_HEIGHT, lockCapTopOffset, lockTitleAt } from "./lock-title";
 import {
   athleteAtPoint,
+  applyWalkOn,
   clampTransform,
   defaultTransform,
   measuredColorSize,
+  normalizeWalkOn,
   resolveClipLayout,
   transformForMeasuredSize,
   type AthleteHit,
@@ -488,6 +490,19 @@ export class KioskApp {
     }
     const lockMs = Number(params.get("lockMs"));
     if (params.has("lockMs") && Number.isFinite(lockMs)) this.lockFixtureMs = lockMs;
+    if (params.has("walkScale") || params.has("walkOffsetY")) {
+      const current = this.config.athletes.walkOn;
+      this.config = {
+        ...this.config,
+        athletes: {
+          ...this.config.athletes,
+          walkOn: normalizeWalkOn({
+            scale: params.has("walkScale") ? Number(params.get("walkScale")) : current.scale,
+            offsetY: params.has("walkOffsetY") ? Number(params.get("walkOffsetY")) : current.offsetY,
+          }),
+        },
+      };
+    }
     const still = params.get("still");
     if (still && /^https?:\/\//i.test(still)) this.attractOverrideFile = still;
   }
@@ -838,11 +853,15 @@ export class KioskApp {
       if (!athlete) continue;
       const file = athlete.clips[side];
       const size = clipSize(this.view(), file);
-      transforms[id] = defaultTransform(
-        side,
-        this.config.output.width,
+      transforms[id] = applyWalkOn(
+        defaultTransform(
+          side,
+          this.config.output.width,
+          this.config.output.height,
+          size,
+        ),
+        this.config.athletes.walkOn,
         this.config.output.height,
-        size,
       );
     }
     return transforms;
@@ -1273,6 +1292,7 @@ export class KioskApp {
       previous,
       size,
       current,
+      this.config.athletes.walkOn,
     );
     this.session = reduceSession(this.session, { type: "setTransform", id: clip.id, transform: next });
     if (this.session.screen !== "attract" && this.session.screen !== "pick" && this.session.screen !== "thanks") {

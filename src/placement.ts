@@ -45,11 +45,12 @@ export function transformForMeasuredSize(
   previousSize: ClipSize,
   nextSize: ClipSize,
   current: AthleteTransform,
+  walkOn: WalkOnPlacement = WALK_ON_DEFAULT,
 ): AthleteTransform {
   const guess = previousSize.height > 0 ? previousSize : { width: 360, height: 640 };
-  const initial = defaultTransform(side, outputWidth, outputHeight, guess);
+  const initial = applyWalkOn(defaultTransform(side, outputWidth, outputHeight, guess), walkOn, outputHeight);
   if (previousSize.height <= 0 || sameTransform(current, initial)) {
-    return defaultTransform(side, outputWidth, outputHeight, nextSize);
+    return applyWalkOn(defaultTransform(side, outputWidth, outputHeight, nextSize), walkOn, outputHeight);
   }
   const scale = nextSize.height > 0 ? current.scale * (previousSize.height / nextSize.height) : current.scale;
   return clampTransform({ ...current, scale }, outputWidth, outputHeight);
@@ -68,6 +69,54 @@ export function defaultTransform(
   const x = side === "left" ? drawW * 0.42 : outputWidth - drawW * 0.42;
   const y = outputHeight * 0.5;
   return { x, y, scale };
+}
+
+/** Stage the walk-on offset is authored in. Output px are `outputHeight / WALK_ON_STAGE_H`. */
+export const WALK_ON_STAGE_H = 2160;
+export const WALK_ON_SCALE_MIN = 0.25;
+export const WALK_ON_SCALE_MAX = 3;
+
+/**
+ * Base placement for every athlete clip. `scale` multiplies that clip's own scale
+ * around the clip center. `offsetY` is stage px at 3840×2160; positive moves down.
+ */
+export interface WalkOnPlacement {
+  scale: number;
+  offsetY: number;
+}
+
+export const WALK_ON_DEFAULT: WalkOnPlacement = { scale: 1, offsetY: 0 };
+
+/** Clamp a finite scale into 0.25–3. Anything else, including a bad offset, uses the defaults. */
+export function normalizeWalkOn(input: unknown): WalkOnPlacement {
+  const record = typeof input === "object" && input !== null ? input as { scale?: unknown; offsetY?: unknown } : {};
+  const scale = typeof record.scale === "number" && Number.isFinite(record.scale)
+    ? clamp(record.scale, WALK_ON_SCALE_MIN, WALK_ON_SCALE_MAX)
+    : WALK_ON_DEFAULT.scale;
+  const offsetY = typeof record.offsetY === "number" && Number.isFinite(record.offsetY)
+    ? record.offsetY
+    : WALK_ON_DEFAULT.offsetY;
+  return { scale, offsetY };
+}
+
+/**
+ * Apply the walk-on base to one clip. `(x, y)` is that clip's center, so the scale
+ * does not pull the athlete toward the screen center. The vertical shift is in
+ * output px. Scale 1 and offset 0 leave the center and scale unchanged.
+ */
+export function applyWalkOn(
+  base: AthleteTransform,
+  walkOn: WalkOnPlacement,
+  outputHeight: number,
+  stageHeight = WALK_ON_STAGE_H,
+): AthleteTransform {
+  const placed = normalizeWalkOn(walkOn);
+  const stageToOutput = outputHeight > 0 && stageHeight > 0 ? outputHeight / stageHeight : 0;
+  return {
+    x: base.x,
+    y: base.y + placed.offsetY * stageToOutput,
+    scale: base.scale * placed.scale,
+  };
 }
 
 export function clampTransform(transform: AthleteTransform, outputWidth: number, outputHeight: number): AthleteTransform {

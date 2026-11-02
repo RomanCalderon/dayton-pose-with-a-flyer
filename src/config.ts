@@ -1,3 +1,4 @@
+import { normalizeWalkOn } from "./placement";
 import type { AppConfig } from "./types";
 
 export const DEFAULT_CONFIG: AppConfig = {
@@ -9,7 +10,10 @@ export const DEFAULT_CONFIG: AppConfig = {
     stillThereWarningSeconds: 0,
   },
   roster: { default: "mens", maxSelections: 2 },
-  athletes: { singleSelectionSide: "random" },
+  athletes: {
+    singleSelectionSide: "random",
+    walkOn: { scale: 1, offsetY: 0 },
+  },
   features: {
     multitouchAdjust: true,
     // On for the desktop prototype so a mouse can resize. Venue configs can turn it off.
@@ -187,15 +191,25 @@ function mergeValue(base: unknown, patch: unknown): unknown {
   return patch === undefined ? base : patch;
 }
 
+function withWalkOn(config: AppConfig): AppConfig {
+  return {
+    ...config,
+    athletes: {
+      ...config.athletes,
+      walkOn: normalizeWalkOn(config.athletes?.walkOn),
+    },
+  };
+}
+
 export function parseConfig(text: string): AppConfig {
   const parsed: unknown = JSON.parse(stripJsonComments(text));
   if (!isRecord(parsed)) {
     throw new Error("kiosk config must be a JSON object");
   }
-  return mergeValue(DEFAULT_CONFIG, parsed) as AppConfig;
+  return withWalkOn(mergeValue(DEFAULT_CONFIG, parsed) as AppConfig);
 }
 
 export function mergeConfig(patch: unknown): AppConfig {
   if (!isRecord(patch)) return structuredClone(DEFAULT_CONFIG);
-  return mergeValue(DEFAULT_CONFIG, patch) as AppConfig;
+  return withWalkOn(mergeValue(DEFAULT_CONFIG, patch) as AppConfig);
 }
